@@ -2,16 +2,19 @@
 
 #include "lib/metro.h"
 #include "lib/server.h"
+#include "lib/middleware.h"
 
 int main() {
     Metro app;
 
-    app.use([](Context& c) {
-        std::cout << c.method << " " << c.path << "\n";
-    });
+    app.use(MIDDLEWARE::logger());
 
     app.get("/", [](Context& c) {
-        c.text("Hello from C++ Hono!");
+        c.text("Hello Metro!");
+    });
+
+    app.get("/error", [](Context& c) {
+        c.text("Hello Metro!", 500);
     });
 
     app.get("/users/:id", [](Context& c) {

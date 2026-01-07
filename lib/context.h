@@ -3,8 +3,6 @@
 #include <string>
 #include <unordered_map>
 
-// using Handler = std::function<void(Context&)>;
-
 struct Context {
     /* ================= REQUEST ================= */
 
@@ -18,8 +16,8 @@ struct Context {
     /* ================= RESPONSE ================= */
 
     int statusCode = 200;
-    std::string responseBody;
     std::unordered_map<std::string, std::string> responseHeaders;
+    std::string responseBody;
     
     Context& status(int code) {
         statusCode = code;
@@ -36,14 +34,18 @@ struct Context {
         return *this;
     }
 
-    void text(const std::string& txt, int code = 200) {
-        statusCode = code;
-        responseHeaders["Content-Type"] = "text/plain ; charset=utf-8";
+    void text(const std::string& txt, int code = -1) {
+        if (code != -1) {
+            statusCode = code;
+        }
+        responseHeaders["Content-Type"] = "text/plain; charset=utf-8";
         responseBody = txt;
     }
 
-    void json(const std::string& jsonStr, int code = 200) {
-        statusCode = code;
+    void json(const std::string& jsonStr, int code = -1) {
+        if (code != -1) {
+            statusCode = code;
+        }
         responseHeaders["Content-Type"] = "application/json";
         responseBody = jsonStr;
     }
