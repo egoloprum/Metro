@@ -1,5 +1,7 @@
 #include <iostream> 
-#include "metro.h"
+
+#include "lib/metro.h"
+#include "lib/server.h"
 
 int main() {
     Metro app;
