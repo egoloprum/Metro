@@ -24,8 +24,8 @@ namespace MIDDLEWARE {
 
             std::cout
                 << "--> "
-                << context.method << " "
-                << context.path
+                << context.req.method << " "
+                << context.req.path
                 << std::endl;
 
             next();
@@ -36,13 +36,13 @@ namespace MIDDLEWARE {
             ).count();
 
             const char* color;
-            if (context.statusCode >= 500) {
+            if (context.res._status >= 500) {
                 color = RED;          
-            } else if (context.statusCode >= 400) {
+            } else if (context.res._status >= 400) {
                 color = YELLOW;       
-            } else if (context.statusCode >= 300) {
+            } else if (context.res._status >= 300) {
                 color = BLUE;         
-            } else if (context.statusCode >= 200) {
+            } else if (context.res._status >= 200) {
                 color = GREEN;        
             } else {
                 color = GRAY;         
@@ -50,9 +50,9 @@ namespace MIDDLEWARE {
 
             std::cout
                 << "<-- "
-                << context.method << " "
-                << context.path << " "
-                << color << context.statusCode << RESET << " "
+                << context.req.method << " "
+                << context.req.path << " "
+                << color << context.res._status << RESET << " "
                 << duration << "ms"
                 << std::endl;
         };

@@ -73,8 +73,8 @@ public:
                 std::getline(req, line); // Skip the rest of the first line
                 
                 Context context;
-                context.method = method;
-                context.path = path;
+                context.req.method = method;
+                context.req.path = path;
                 
                 // Parse headers
                 while (std::getline(req, line) && line != "\r") {
@@ -86,7 +86,7 @@ public:
                         value.erase(0, value.find_first_not_of(" \t\r\n"));
                         value.erase(value.find_last_not_of(" \t\r\n") + 1);
 
-                        context.requestHeaders[key] = value;
+                        context.req._headers[key] = value;
                     }
                 }
 
@@ -94,18 +94,18 @@ public:
 
                 std::ostringstream response;
                 response << "HTTP/1.1 "
-                    << context.statusCode << " "
-                    << METRO_HELPERS::reasonPhrase(context.statusCode) << "\r\n";
+                    << context.res._status << " "
+                    << METRO_HELPERS::reasonPhrase(context.res._status) << "\r\n";
 
-                for (auto& header : context.responseHeaders) {
+                for (auto& header : context.res._headers) {
                     response << header.first << ": " << header.second << "\r\n";
                 }
 
-                response << "Content-Length: " << context.responseBody.size() << "\r\n";
+                response << "Content-Length: " << context.res._body.size() << "\r\n";
                 response << "Date: " << METRO_HELPERS::getCurrentDate() << "\r\n";
                 
                 response << "\r\n";
-                response << context.responseBody;
+                response << context.res._body;
 
                 auto out = response.str();
                 ssize_t bytes_sent = send(client, out.c_str(), out.size(), 0);

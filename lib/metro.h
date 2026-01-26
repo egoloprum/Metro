@@ -14,20 +14,20 @@ class Metro {
     std::vector<Middleware> middleware;
 
     void dispatchRoute(Context& context) {
-        for (auto& routes : this->routes) {
-            if (routes.method != context.method) continue;
+        for (auto& route : this->routes) {
+            if (route.method != context.req.method) continue;
 
             std::smatch match;
-            if (std::regex_match(context.path, match, routes.pathRegex)) {
-                for (size_t i = 0; i < routes.paramNames.size(); ++i) {
-                    context.params[routes.paramNames[i]] = match[i + 1];
+            if (std::regex_match(context.req.path, match, route.pathRegex)) {
+                for (size_t i = 0; i < route.paramNames.size(); ++i) {
+                    context.req._params[route.paramNames[i]] = match[i + 1];
                 }
-                routes.handler(context);
+                route.handler(context);
                 return;
             }
         }
 
-        context.status(404).text("Not Found");
+        context.res.status(404).text("Not Found");
     }
 
 public:
