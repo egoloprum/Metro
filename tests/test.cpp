@@ -11,9 +11,9 @@ int main() {
 
     app.get("/users/:id", [](Context& c) {
         std::string id = c.req.params("id");
-        std::string q = c.req.query("q");          // "search"
-        auto qs = c.req.queries("q");              // ["search", "cpp"]
-        std::string name = c.req.query("name");    // "John Doe"
+        std::string q = c.req.query("q");          
+        auto qs = c.req.queries("q");              
+        std::string name = c.req.query("name");    
 
         std::cout << "queries: " << q << " " << name << std::endl;
 
@@ -22,8 +22,6 @@ int main() {
         }
 
         c.res.text("ok");
-
-        // c.res.status(200).header("X-Test", "yes").text("User id: " + id);
     });
 
     app.post("/echo", [](Context& c) {
