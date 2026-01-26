@@ -1,0 +1,25 @@
+#include <iostream>
+
+#include "../lib/metro.h"
+#include "../lib/server.h"
+#include "../lib/middleware.h"
+
+int main() {
+    Metro app;
+    app.use(MIDDLEWARE::logger());
+
+    app.get("/search", [](Context& c) {
+        std::string q = std::string(c.req.query("q"));
+        std::string page = std::string(c.req.query("page"));
+
+        if (q.empty()) {
+            c.res.status(400).text("Missing query");
+            return;
+        }
+
+        c.res.text("q=" + q + ", page=" + (page.empty() ? "1" : page));
+    });
+
+    Server server(app, 3001);
+    server.listen();
+}

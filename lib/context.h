@@ -40,7 +40,8 @@ struct Request {
         return it == _query.end() ? empty : it->second;
     }
 
-    std::string body() const { return _body; }
+    const std::string& body() const { return _body; }
+    std::string& body() { return _body; }
 };
 
 struct Response {
