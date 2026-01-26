@@ -143,6 +143,25 @@ namespace METRO_HELPERS {
             out[key].push_back(val);
         }
     }
+
+    inline void ltrim(std::string& s) {
+        size_t i = 0;
+        while (i < s.size() && (s[i] == ' ' || s[i] == '\t' || s[i] == '\r' || s[i] == '\n'))
+            ++i;
+        s.erase(0, i);
+    }
+
+    inline void rtrim(std::string& s) {
+        size_t i = s.size();
+        while (i > 0 && (s[i - 1] == ' ' || s[i - 1] == '\t' || s[i - 1] == '\r' || s[i - 1] == '\n'))
+            --i;
+        s.erase(i);
+    }
+
+    inline void trim(std::string& s) {
+        ltrim(s);
+        rtrim(s);
+    }
 }
 
 

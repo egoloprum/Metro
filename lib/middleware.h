@@ -24,8 +24,8 @@ namespace MIDDLEWARE {
 
             std::cout
                 << "--> "
-                << context.req.method << " "
-                << context.req.path
+                << context.req._method << " "
+                << context.req._path
                 << std::endl;
 
             next();
@@ -50,8 +50,8 @@ namespace MIDDLEWARE {
 
             std::cout
                 << "<-- "
-                << context.req.method << " "
-                << context.req.path << " "
+                << context.req._method << " "
+                << context.req._path << " "
                 << color << context.res._status << RESET << " "
                 << duration << "ms"
                 << std::endl;

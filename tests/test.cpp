@@ -31,6 +31,16 @@ int main() {
         c.res.status(201).body("Echo: " + body);
     });
 
+    app.put("/echo", [](Context& c) {
+        std::string body = c.req.body();
+        c.res.status(201).body("Echo: " + body);
+    });
+
+    app.del("/echo", [](Context& c) {
+        std::string body = c.req.body();
+        c.res.status(201).body("Echo: " + body);
+    });
+
     Server server(app, 3000);
     server.listen();
 }

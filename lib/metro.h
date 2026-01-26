@@ -16,10 +16,10 @@ class Metro {
 
     void dispatchRoute(Context& context) {
         for (auto& route : this->routes) {
-            if (route.method != context.req.method) continue;
+            if (route.method != context.req._method) continue;
 
             std::smatch match;
-            if (std::regex_match(context.req.path, match, route.pathRegex)) {
+            if (std::regex_match(context.req._path, match, route.pathRegex)) {
                 for (size_t i = 0; i < route.paramNames.size(); ++i) {
                     context.req._params[route.paramNames[i]] = METRO_HELPERS::urlDecode(match[i + 1].str());
                 }
