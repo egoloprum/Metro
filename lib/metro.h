@@ -8,6 +8,7 @@
 #include "types.h"
 #include "route.h"
 #include "constants.h"
+#include "helpers.h"
 
 class Metro {
     std::vector<Route> routes;
@@ -20,8 +21,9 @@ class Metro {
             std::smatch match;
             if (std::regex_match(context.req.path, match, route.pathRegex)) {
                 for (size_t i = 0; i < route.paramNames.size(); ++i) {
-                    context.req._params[route.paramNames[i]] = match[i + 1];
+                    context.req._params[route.paramNames[i]] = METRO_HELPERS::urlDecode(match[i + 1].str());
                 }
+
                 route.handler(context);
                 return;
             }
