@@ -12,7 +12,7 @@ struct Request {
     std::string _body;
 
     std::unordered_map<std::string, std::string> _params;
-    std::unordered_map<std::string, std::string> _query; 
+    std::unordered_map<std::string, std::vector<std::string>> _query;
 
     Request() = default;
 
@@ -30,8 +30,14 @@ struct Request {
 
     std::string query(const std::string& key) const {
         auto it = _query.find(key);
-        if (it != _query.end()) return it->second;
-        return "";
+        if (it == _query.end() || it->second.empty()) return "";
+        return it->second[0];
+    }
+
+    const std::vector<std::string>& queries(const std::string& key) const {
+        static const std::vector<std::string> empty;
+        auto it = _query.find(key);
+        return it == _query.end() ? empty : it->second;
     }
 
     std::string body() const { return _body; }

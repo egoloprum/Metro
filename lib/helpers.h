@@ -96,6 +96,53 @@ namespace METRO_HELPERS {
         ss << std::put_time(&gmt_time, "%a, %d %b %Y %H:%M:%S GMT");
         return ss.str();
     }
+
+    inline std::string urlDecode(const std::string& s) {
+        std::string out;
+        out.reserve(s.size());
+
+        for (size_t i = 0; i < s.size(); ++i) {
+            if (s[i] == '+') {
+                out += ' ';
+            } else if (s[i] == '%' && i + 2 < s.size()) {
+                char h1 = s[i + 1];
+                char h2 = s[i + 2];
+
+                if (std::isxdigit(h1) && std::isxdigit(h2)) {
+                    int val = std::stoi(s.substr(i + 1, 2), nullptr, 16);
+                    out += static_cast<char>(val);
+                    i += 2;
+                } else {
+                    out += s[i];
+                }
+            } else {
+                out += s[i];
+            }
+        }
+
+        return out;
+    }
+
+    inline void parseQuery(
+        const std::string& qs,
+        std::unordered_map<std::string, std::vector<std::string>>& out
+    ) {
+        std::istringstream ss(qs);
+        std::string pair;
+
+        while (std::getline(ss, pair, '&')) {
+            if (pair.empty()) continue;
+
+            auto eq = pair.find('=');
+
+            std::string key = urlDecode(pair.substr(0, eq));
+            std::string val = (eq == std::string::npos)
+                ? ""
+                : urlDecode(pair.substr(eq + 1));
+
+            out[key].push_back(val);
+        }
+    }
 }
 
 

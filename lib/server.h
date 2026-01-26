@@ -65,8 +65,8 @@ public:
             
             if (bytes_read > 0) {
                 std::istringstream req(buffer);
-                std::string method, path, version;
-                req >> method >> path >> version;
+                std::string method, rawPath, version;
+                req >> method >> rawPath >> version;
 
                 // Parse headers
                 std::string line;
@@ -74,7 +74,14 @@ public:
                 
                 Context context;
                 context.req.method = method;
-                context.req.path = path;
+
+                auto qpos = rawPath.find('?');
+                if (qpos != std::string::npos) {
+                    context.req.path = rawPath.substr(0, qpos);
+                    METRO_HELPERS::parseQuery(rawPath.substr(qpos + 1), context.req._query);
+                } else {
+                    context.req.path = rawPath;
+                }
                 
                 // Parse headers
                 while (std::getline(req, line) && line != "\r") {
