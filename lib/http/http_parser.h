@@ -91,7 +91,7 @@ namespace Metro {
           Request& req
       ) {
           auto lenHeader =
-              req.header(std::string(Constants::Http_Header::CONTENT_LENGTH));
+              req.header(Constants::Http_Header::CONTENT_LENGTH);
   
           if (!lenHeader) return;
   
@@ -120,7 +120,7 @@ namespace Metro {
           const Request& req
       ) {
           auto conn =
-              req.header(std::string(Constants::Http_Header::CONNECTION));
+              req.header(Constants::Http_Header::CONNECTION);
           if (!conn) return true;
           return *conn != Constants::Http_Connection::CLOSE;
       }

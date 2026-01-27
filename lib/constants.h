@@ -1,7 +1,5 @@
 #pragma once
 
-#include <string_view>
-
 namespace Metro {
   namespace Constants {
     namespace Http_Method {
@@ -89,88 +87,88 @@ namespace Metro {
     }
     
     namespace Http_Header {
-        inline constexpr std::string_view ACCEPT                  = "accept";
-        inline constexpr std::string_view ACCEPT_CHARSET          = "accept-charset";
-        inline constexpr std::string_view ACCEPT_ENCODING         = "accept-encoding";
-        inline constexpr std::string_view ACCEPT_LANGUAGE         = "accept-language";
-        inline constexpr std::string_view AUTHORIZATION           = "authorization";
-        inline constexpr std::string_view CACHE_CONTROL           = "cache-control";
-        inline constexpr std::string_view CONTENT_DISPOSITION     = "content-disposition";
-        inline constexpr std::string_view CONTENT_ENCODING        = "content-encoding";
-        inline constexpr std::string_view CONTENT_LANGUAGE        = "content-language";
-        inline constexpr std::string_view CONTENT_LOCATION        = "content-location";
-        inline constexpr std::string_view CONTENT_RANGE           = "content-range";
-        inline constexpr std::string_view CONTENT_TYPE            = "content-type";
-        inline constexpr std::string_view CONTENT_LENGTH          = "content-length";
-        inline constexpr std::string_view COOKIE                  = "cookie";
-        inline constexpr std::string_view CONNECTION              = "connection";
-        inline constexpr std::string_view DATE                    = "date";
-        inline constexpr std::string_view ETAG                    = "etag";
-        inline constexpr std::string_view EXPECT                  = "expect";
-        inline constexpr std::string_view EXPIRES                 = "expires";
-        inline constexpr std::string_view FROM                    = "from";
-        inline constexpr std::string_view HOST                    = "host";
-        inline constexpr std::string_view IF_MATCH                = "if-match";
-        inline constexpr std::string_view IF_MODIFIED_SINCE       = "if-modified-since";
-        inline constexpr std::string_view IF_NONE_MATCH           = "if-none-match";
-        inline constexpr std::string_view IF_RANGE                = "if-range";
-        inline constexpr std::string_view IF_UNMODIFIED_SINCE     = "if-unmodified-since";
-        inline constexpr std::string_view LAST_MODIFIED           = "last-modified";
-        inline constexpr std::string_view LOCATION                = "location";
-        inline constexpr std::string_view MAX_FORWARDS            = "max-forwards";
-        inline constexpr std::string_view ORIGIN                  = "origin";
-        inline constexpr std::string_view PRAGMA                  = "pragma";
-        inline constexpr std::string_view PROXY_AUTHENTICATE      = "proxy-authenticate";
-        inline constexpr std::string_view PROXY_AUTHORIZATION     = "proxy-authorization";
-        inline constexpr std::string_view RANGE                   = "range";
-        inline constexpr std::string_view REFERER                 = "referer";
-        inline constexpr std::string_view RETRY_AFTER             = "retry-after";
-        inline constexpr std::string_view SERVER                  = "server";
-        inline constexpr std::string_view SET_COOKIE              = "set-cookie";
-        inline constexpr std::string_view TE                      = "te";
-        inline constexpr std::string_view TRAILER                 = "trailer";
-        inline constexpr std::string_view TRANSFER_ENCODING       = "transfer-encoding";
-        inline constexpr std::string_view UPGRADE                 = "upgrade";
-        inline constexpr std::string_view USER_AGENT              = "user-agent";
-        inline constexpr std::string_view VARY                    = "vary";
-        inline constexpr std::string_view VIA                     = "via";
-        inline constexpr std::string_view WARNING                 = "warning";
-        inline constexpr std::string_view WWW_AUTHENTICATE        = "www-authenticate";
-        inline constexpr std::string_view X_FORWARDED_FOR         = "x-forwarded-for";
-        inline constexpr std::string_view X_FORWARDED_HOST        = "x-forwarded-host";
-        inline constexpr std::string_view X_FORWARDED_PROTO       = "x-forwarded-proto";
-        inline constexpr std::string_view X_REQUEST_ID            = "x-request-id";
-        inline constexpr std::string_view X_CORRELATION_ID        = "x-correlation-id";
-        inline constexpr std::string_view X_FRAME_OPTIONS         = "x-frame-options";
-        inline constexpr std::string_view X_CONTENT_TYPE_OPTIONS  = "x-content-type-options";
-        inline constexpr std::string_view X_XSS_PROTECTION        = "x-xss-protection";
-        inline constexpr std::string_view X_RATE_LIMIT_LIMIT      = "x-ratelimit-limit";
-        inline constexpr std::string_view X_RATE_LIMIT_REMAINING  = "x-ratelimit-remaining";
-        inline constexpr std::string_view X_RATE_LIMIT_RESET      = "x-ratelimit-reset";
+        constexpr const char* ACCEPT                  = "accept";
+        constexpr const char* ACCEPT_CHARSET          = "accept-charset";
+        constexpr const char* ACCEPT_ENCODING         = "accept-encoding";
+        constexpr const char* ACCEPT_LANGUAGE         = "accept-language";
+        constexpr const char* AUTHORIZATION           = "authorization";
+        constexpr const char* CACHE_CONTROL           = "cache-control";
+        constexpr const char* CONTENT_DISPOSITION     = "content-disposition";
+        constexpr const char* CONTENT_ENCODING        = "content-encoding";
+        constexpr const char* CONTENT_LANGUAGE        = "content-language";
+        constexpr const char* CONTENT_LOCATION        = "content-location";
+        constexpr const char* CONTENT_RANGE           = "content-range";
+        constexpr const char* CONTENT_TYPE            = "content-type";
+        constexpr const char* CONTENT_LENGTH          = "content-length";
+        constexpr const char* COOKIE                  = "cookie";
+        constexpr const char* CONNECTION              = "connection";
+        constexpr const char* DATE                    = "date";
+        constexpr const char* ETAG                    = "etag";
+        constexpr const char* EXPECT                  = "expect";
+        constexpr const char* EXPIRES                 = "expires";
+        constexpr const char* FROM                    = "from";
+        constexpr const char* HOST                    = "host";
+        constexpr const char* IF_MATCH                = "if-match";
+        constexpr const char* IF_MODIFIED_SINCE       = "if-modified-since";
+        constexpr const char* IF_NONE_MATCH           = "if-none-match";
+        constexpr const char* IF_RANGE                = "if-range";
+        constexpr const char* IF_UNMODIFIED_SINCE     = "if-unmodified-since";
+        constexpr const char* LAST_MODIFIED           = "last-modified";
+        constexpr const char* LOCATION                = "location";
+        constexpr const char* MAX_FORWARDS            = "max-forwards";
+        constexpr const char* ORIGIN                  = "origin";
+        constexpr const char* PRAGMA                  = "pragma";
+        constexpr const char* PROXY_AUTHENTICATE      = "proxy-authenticate";
+        constexpr const char* PROXY_AUTHORIZATION     = "proxy-authorization";
+        constexpr const char* RANGE                   = "range";
+        constexpr const char* REFERER                 = "referer";
+        constexpr const char* RETRY_AFTER             = "retry-after";
+        constexpr const char* SERVER                  = "server";
+        constexpr const char* SET_COOKIE              = "set-cookie";
+        constexpr const char* TE                      = "te";
+        constexpr const char* TRAILER                 = "trailer";
+        constexpr const char* TRANSFER_ENCODING       = "transfer-encoding";
+        constexpr const char* UPGRADE                 = "upgrade";
+        constexpr const char* USER_AGENT              = "user-agent";
+        constexpr const char* VARY                    = "vary";
+        constexpr const char* VIA                     = "via";
+        constexpr const char* WARNING                 = "warning";
+        constexpr const char* WWW_AUTHENTICATE        = "www-authenticate";
+        constexpr const char* X_FORWARDED_FOR         = "x-forwarded-for";
+        constexpr const char* X_FORWARDED_HOST        = "x-forwarded-host";
+        constexpr const char* X_FORWARDED_PROTO       = "x-forwarded-proto";
+        constexpr const char* X_REQUEST_ID            = "x-request-id";
+        constexpr const char* X_CORRELATION_ID        = "x-correlation-id";
+        constexpr const char* X_FRAME_OPTIONS         = "x-frame-options";
+        constexpr const char* X_CONTENT_TYPE_OPTIONS  = "x-content-type-options";
+        constexpr const char* X_XSS_PROTECTION        = "x-xss-protection";
+        constexpr const char* X_RATE_LIMIT_LIMIT      = "x-ratelimit-limit";
+        constexpr const char* X_RATE_LIMIT_REMAINING  = "x-ratelimit-remaining";
+        constexpr const char* X_RATE_LIMIT_RESET      = "x-ratelimit-reset";
     }
     
     namespace Http_Connection {
-        inline constexpr std::string_view CLOSE          = "close";
-        inline constexpr std::string_view KEEP_ALIVE     = "keep-alive";
-        inline constexpr std::string_view UPGRADE        = "upgrade";
+        constexpr const char* CLOSE          = "close";
+        constexpr const char* KEEP_ALIVE     = "keep-alive";
+        constexpr const char* UPGRADE        = "upgrade";
     }
     
     namespace Http_Content_Type {
-        inline constexpr std::string_view APPLICATION_JSON              = "application/json";
-        inline constexpr std::string_view APPLICATION_XML               = "application/xml";
-        inline constexpr std::string_view APPLICATION_FORM_URLENCODED   = "application/x-www-form-urlencoded";
-        inline constexpr std::string_view MULTIPART_FORM_DATA           = "multipart/form-data";
-        inline constexpr std::string_view TEXT_PLAIN                    = "text/plain";
-        inline constexpr std::string_view TEXT_HTML                     = "text/html";
-        inline constexpr std::string_view TEXT_CSS                      = "text/css";
-        inline constexpr std::string_view TEXT_CSV                      = "text/csv";
-        inline constexpr std::string_view APPLICATION_JAVASCRIPT        = "application/javascript";
-        inline constexpr std::string_view APPLICATION_PDF               = "application/pdf";
-        inline constexpr std::string_view IMAGE_PNG                     = "image/png";
-        inline constexpr std::string_view IMAGE_JPEG                    = "image/jpeg";
-        inline constexpr std::string_view IMAGE_GIF                     = "image/gif";
-        inline constexpr std::string_view IMAGE_SVG_XML                 = "image/svg+xml";
-        inline constexpr std::string_view APPLICATION_OCTET_STREAM      = "application/octet-stream";
+        constexpr const char* APPLICATION_JSON              = "application/json";
+        constexpr const char* APPLICATION_XML               = "application/xml";
+        constexpr const char* APPLICATION_FORM_URLENCODED   = "application/x-www-form-urlencoded";
+        constexpr const char* MULTIPART_FORM_DATA           = "multipart/form-data";
+        constexpr const char* TEXT_PLAIN                    = "text/plain";
+        constexpr const char* TEXT_HTML                     = "text/html";
+        constexpr const char* TEXT_CSS                      = "text/css";
+        constexpr const char* TEXT_CSV                      = "text/csv";
+        constexpr const char* APPLICATION_JAVASCRIPT        = "application/javascript";
+        constexpr const char* APPLICATION_PDF               = "application/pdf";
+        constexpr const char* IMAGE_PNG                     = "image/png";
+        constexpr const char* IMAGE_JPEG                    = "image/jpeg";
+        constexpr const char* IMAGE_GIF                     = "image/gif";
+        constexpr const char* IMAGE_SVG_XML                 = "image/svg+xml";
+        constexpr const char* APPLICATION_OCTET_STREAM      = "application/octet-stream";
     }
   }
 }
