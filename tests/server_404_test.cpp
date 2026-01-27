@@ -6,6 +6,7 @@
 
 int main() {
     Metro app;
+    app.use(MIDDLEWARE::logger());
 
     app.get("/only-get", [](Context& c) {
         c.res.text("GET OK");

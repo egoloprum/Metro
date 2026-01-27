@@ -6,6 +6,7 @@
 
 int main() {
     Metro app;
+    app.use(MIDDLEWARE::logger());
 
     app.use([](Context& c, Next next) {
         auto token = c.req.header("Authorization");

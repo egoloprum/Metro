@@ -4,11 +4,13 @@
 #include <unordered_map>
 #include <optional>
 
+#include "http/http_types.h"
+
 struct Request {
     std::string _method;
     std::string _path;
 
-    std::unordered_map<std::string, std::string> _headers;
+    Header _headers;
     std::string _body;
 
     std::unordered_map<std::string, std::string> _params;
@@ -46,7 +48,7 @@ struct Request {
 
 struct Response {
     int _status = 200;
-    std::unordered_map<std::string, std::string> _headers;
+    Header _headers;
     std::string _body;
 
     Response() = default;
@@ -77,6 +79,4 @@ struct Response {
 struct Context {
     Request req;
     Response res;
-
-    bool responded = false;
 };

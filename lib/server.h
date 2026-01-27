@@ -12,6 +12,8 @@
 
 #include "metro.h"
 #include "helpers.h"
+#include "http/http_parser.h"
+#include "http/http_writer.h"
 
 constexpr int BACKLOG_SIZE = 128;
 constexpr int BUFFER_SIZE  = 8192;
@@ -85,170 +87,25 @@ private:
         setTimeout(clientSocket);
 
         bool keepAlive = true;
+
         while (keepAlive) {
             Context context;
-            if (!readRequest(clientSocket, context, keepAlive))
+
+            if (!HttpParser::parse(
+                    clientSocket,
+                    context.req,
+                    keepAlive
+                )) {
                 break;
+            }
 
             metro.handle(context);
-            writeResponse(clientSocket, context, keepAlive);
-        }
-    }
 
-    bool readRequest(int clientSocket, Context& context, bool& keepAlive) {
-        std::string requestBuffer;
-
-        if (!readUntilHeaders(clientSocket, requestBuffer))
-            return false;
-
-        std::istringstream requestStream(requestBuffer);
-        parseRequestLine(requestStream, context.req);
-        parseHeaders(requestStream, context.req);
-
-        keepAlive = isKeepAlive(context.req);
-        parseBody(clientSocket, requestBuffer, context.req);
-
-        return true;
-    }
-
-    bool readUntilHeaders(int clientSocket, std::string& requestBuffer) {
-        char bufferChunk[BUFFER_SIZE];
-
-        while (requestBuffer.find("\r\n\r\n") == std::string::npos) {
-            ssize_t bytesRead =
-                recv(clientSocket, bufferChunk, sizeof(bufferChunk), 0);
-
-            if (bytesRead == 0) return false;
-
-            if (bytesRead < 0) {
-                if (errno == EAGAIN || errno == EWOULDBLOCK)
-                    return false;
-
-                perror("recv");
-                return false;
-            }
-
-            requestBuffer.append(bufferChunk, bytesRead);
-
-            if (requestBuffer.size() > 64 * 1024) {
-                std::cerr << "Header too large\n";
-                return false;
-            }
-        }
-        return true;
-    }
-
-    void parseRequestLine(std::istream& input, Request& request) {
-        std::string rawPath;
-        std::string httpVersion;
-
-        input >> request._method >> rawPath >> httpVersion;
-
-        auto queryPos = rawPath.find('?');
-        if (queryPos != std::string::npos) {
-            request._path = rawPath.substr(0, queryPos);
-            METRO_HELPERS::parseQuery(
-                rawPath.substr(queryPos + 1),
-                request._query
-            );
-        } else {
-            request._path = rawPath;
-        }
-    }
-
-    void parseHeaders(std::istream& input, Request& request) {
-        std::string headerLine;
-        std::getline(input, headerLine); // consume remainder
-
-        while (std::getline(input, headerLine) && headerLine != "\r") {
-            auto colonPos = headerLine.find(':');
-            if (colonPos == std::string::npos) continue;
-
-            std::string headerKey = headerLine.substr(0, colonPos);
-            std::string headerValue = headerLine.substr(colonPos + 1);
-
-            METRO_HELPERS::trim(headerValue);
-            request._headers[headerKey] = headerValue;
-        }
-    }
-
-    void parseBody(int clientSocket,
-                   std::string& requestBuffer,
-                   Request& request) {
-        auto headerIt = request._headers.find("Content-Length");
-        if (headerIt == request._headers.end()) return;
-
-        size_t contentLength = std::stoul(headerIt->second);
-
-        size_t headersEndPos =
-            requestBuffer.find("\r\n\r\n") + 4;
-        size_t alreadyRead =
-            requestBuffer.size() - headersEndPos;
-
-        request._body.clear();
-        request._body.reserve(contentLength);
-
-        if (alreadyRead > 0) {
-            size_t bytesToCopy =
-                std::min(alreadyRead, contentLength);
-            request._body.append(
-                requestBuffer.data() + headersEndPos,
-                bytesToCopy
-            );
-        }
-
-        while (request._body.size() < contentLength) {
-            char bufferChunk[BUFFER_SIZE];
-            ssize_t bytesRead = recv(
+            HttpWriter::write(
                 clientSocket,
-                bufferChunk,
-                std::min(sizeof(bufferChunk),
-                         contentLength - request._body.size()),
-                0
+                context,
+                keepAlive
             );
-
-            if (bytesRead <= 0) break;
-            request._body.append(bufferChunk, bytesRead);
         }
-    }
-
-    bool isKeepAlive(const Request& request) {
-        auto headerIt = request._headers.find("Connection");
-        if (headerIt == request._headers.end()) return true;
-        return headerIt->second != "close";
-    }
-
-    void writeResponse(int clientSocket,
-                       Context& context,
-                       bool keepAlive) {
-        std::ostringstream responseStream;
-
-        responseStream
-            << "HTTP/1.1 "
-            << context.res._status << " "
-            << METRO_HELPERS::reasonPhrase(context.res._status)
-            << "\r\n";
-
-        for (const auto& header : context.res._headers) {
-            responseStream
-                << header.first << ": "
-                << header.second << "\r\n";
-        }
-
-        responseStream
-            << "Content-Length: "
-            << context.res._body.size() << "\r\n"
-            << "Connection: "
-            << (keepAlive ? "keep-alive" : "close") << "\r\n"
-            << "Date: "
-            << METRO_HELPERS::getCurrentDate()
-            << "\r\n\r\n"
-            << context.res._body;
-
-        std::string responseString = responseStream.str();
-        send(clientSocket,
-             responseString.c_str(),
-             responseString.size(),
-             0);
     }
 };
