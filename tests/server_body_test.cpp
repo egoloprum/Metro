@@ -5,8 +5,10 @@
 #include "../lib/middleware.h"
 
 int main() {
-    Metro app;
-    app.use(MIDDLEWARE::logger());
+    using namespace Metro;
+
+    App app;
+    app.use(Middlewares::logger());
 
     app.post("/echo", [](Context& c) {
         auto& raw = c.req.body();            

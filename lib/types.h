@@ -7,6 +7,11 @@
 
 #include "context.h"
 
-using Next = std::function<void()>;
-using Handler = std::function<void(Context&)>;
-using Middleware = std::function<void(Context&, Next)>;
+namespace Metro {
+  namespace Types {
+    using Next = std::function<void()>;
+    using Handler = std::function<void(Context&)>;
+    using Middleware = std::function<void(Context&, Next)>;
+  }
+}
+

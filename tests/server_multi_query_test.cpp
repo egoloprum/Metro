@@ -5,8 +5,10 @@
 #include "../lib/middleware.h"
 
 int main() {
-    Metro app;
-    app.use(MIDDLEWARE::logger());
+    using namespace Metro;
+
+    App app;
+    app.use(Middlewares::logger());
 
     app.get("/tags", [](Context& c) {
         auto tags = c.req.queries("tag");

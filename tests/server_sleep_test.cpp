@@ -1,4 +1,6 @@
 #include <iostream>
+#include <chrono> 
+#include <thread> 
 
 #include "../lib/metro.h"
 #include "../lib/server.h"
@@ -10,10 +12,11 @@ int main() {
     App app;
     app.use(Middlewares::logger());
 
-    app.get("/only-get", [](Context& c) {
+    app.get("/echo", [](Context& c) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         c.res.text("GET OK");
     });
 
-    Server server(app, 3004);
+    Server server(app, 3006);
     server.listen();
 }

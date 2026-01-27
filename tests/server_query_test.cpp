@@ -5,8 +5,10 @@
 #include "../lib/middleware.h"
 
 int main() {
-    Metro app;
-    app.use(MIDDLEWARE::logger());
+    using namespace Metro;
+    
+    App app;
+    app.use(Middlewares::logger());
 
     app.get("/search", [](Context& c) {
         std::string q = std::string(c.req.query("q"));
