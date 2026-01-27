@@ -21,107 +21,116 @@ class Server {
     int port;
 
 public:
-    Server(Metro& m, int p) : metro(m), port(p) {}
+    Server(Metro& metroInstance, int listenPort)
+        : metro(metroInstance), port(listenPort) {}
 
     void listen() {
-        int sock = createSocket();
-        bindSocket(sock);
-        startListen(sock);
+        int serverSocket = createSocket();
+        bindSocket(serverSocket);
+        startListen(serverSocket);
 
         std::cout << "Listening on port " << port << "\n";
 
         while (true) {
-            int client = accept(sock, nullptr, nullptr);
-            if (client < 0) continue;
+            int clientSocket = accept(serverSocket, nullptr, nullptr);
+            if (clientSocket < 0) continue;
 
-            handleConnection(client);
-            close(client);
+            handleConnection(clientSocket);
+            close(clientSocket);
         }
     }
 
 private:
     int createSocket() {
-        int sock = socket(AF_INET, SOCK_STREAM, 0);
-        int opt = 1;
-        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-        return sock;
+        int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+        int reuseAddress = 1;
+        setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR,
+                   &reuseAddress, sizeof(reuseAddress));
+        return serverSocket;
     }
 
-    void bindSocket(int sock) {
-        sockaddr_in addr{};
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = INADDR_ANY;
-        addr.sin_port = htons(port);
+    void bindSocket(int serverSocket) {
+        sockaddr_in address{};
+        address.sin_family = AF_INET;
+        address.sin_addr.s_addr = INADDR_ANY;
+        address.sin_port = htons(port);
 
-        if (bind(sock, (sockaddr*)&addr, sizeof(addr)) < 0) {
+        if (bind(serverSocket,
+                 reinterpret_cast<sockaddr*>(&address),
+                 sizeof(address)) < 0) {
             perror("bind");
             exit(1);
         }
     }
 
-    void startListen(int sock) {
-        if (::listen(sock, BACKLOG_SIZE) < 0) {
+    void startListen(int serverSocket) {
+        if (::listen(serverSocket, BACKLOG_SIZE) < 0) {
             perror("listen");
             exit(1);
         }
     }
 
-    void setTimeout(int fd) {
-        timeval tv{};
-        tv.tv_sec = 5;
-        tv.tv_usec = 0;
+    void setTimeout(int socketFd) {
+        timeval timeout{};
+        timeout.tv_sec = 5;
+        timeout.tv_usec = 0;
 
-        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+        setsockopt(socketFd, SOL_SOCKET, SO_RCVTIMEO,
+                   &timeout, sizeof(timeout));
+        setsockopt(socketFd, SOL_SOCKET, SO_SNDTIMEO,
+                   &timeout, sizeof(timeout));
     }
 
-
-    void handleConnection(int client) {
-        setTimeout(client);
+    void handleConnection(int clientSocket) {
+        setTimeout(clientSocket);
 
         bool keepAlive = true;
         while (keepAlive) {
-            Context ctx;
-            if (!readRequest(client, ctx, keepAlive)) break;
-            metro.handle(ctx);
-            writeResponse(client, ctx, keepAlive);
+            Context context;
+            if (!readRequest(clientSocket, context, keepAlive))
+                break;
+
+            metro.handle(context);
+            writeResponse(clientSocket, context, keepAlive);
         }
     }
 
+    bool readRequest(int clientSocket, Context& context, bool& keepAlive) {
+        std::string requestBuffer;
 
-    bool readRequest(int client, Context& ctx, bool& keepAlive) {
-        std::string buffer;
-
-        if (!readUntilHeaders(client, buffer))
+        if (!readUntilHeaders(clientSocket, requestBuffer))
             return false;
 
-        std::istringstream ss(buffer);
-        parseRequestLine(ss, ctx.req);
-        parseHeaders(ss, ctx.req);
+        std::istringstream requestStream(requestBuffer);
+        parseRequestLine(requestStream, context.req);
+        parseHeaders(requestStream, context.req);
 
-        keepAlive = isKeepAlive(ctx.req);
+        keepAlive = isKeepAlive(context.req);
+        parseBody(clientSocket, requestBuffer, context.req);
 
-        parseBody(client, buffer, ctx.req);
         return true;
     }
 
+    bool readUntilHeaders(int clientSocket, std::string& requestBuffer) {
+        char bufferChunk[BUFFER_SIZE];
 
-    bool readUntilHeaders(int client, std::string& buffer) {
-        char temp[BUFFER_SIZE];
+        while (requestBuffer.find("\r\n\r\n") == std::string::npos) {
+            ssize_t bytesRead =
+                recv(clientSocket, bufferChunk, sizeof(bufferChunk), 0);
 
-        while (buffer.find("\r\n\r\n") == std::string::npos) {
-            ssize_t n = recv(client, temp, sizeof(temp), 0);
-            if (n == 0) return false;          
-            if (n < 0) {
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            if (bytesRead == 0) return false;
+
+            if (bytesRead < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK)
                     return false;
-                }
-                perror("recv"); 
+
+                perror("recv");
                 return false;
             }
-            buffer.append(temp, n);
 
-            if (buffer.size() > 64 * 1024) {  
+            requestBuffer.append(bufferChunk, bytesRead);
+
+            if (requestBuffer.size() > 64 * 1024) {
                 std::cerr << "Header too large\n";
                 return false;
             }
@@ -129,86 +138,117 @@ private:
         return true;
     }
 
+    void parseRequestLine(std::istream& input, Request& request) {
+        std::string rawPath;
+        std::string httpVersion;
 
-    void parseRequestLine(std::istream& in, Request& req) {
-        std::string rawPath, version;
-        in >> req._method >> rawPath >> version;
+        input >> request._method >> rawPath >> httpVersion;
 
-        auto qpos = rawPath.find('?');
-        if (qpos != std::string::npos) {
-            req._path = rawPath.substr(0, qpos);
-            METRO_HELPERS::parseQuery(rawPath.substr(qpos + 1), req._query);
+        auto queryPos = rawPath.find('?');
+        if (queryPos != std::string::npos) {
+            request._path = rawPath.substr(0, queryPos);
+            METRO_HELPERS::parseQuery(
+                rawPath.substr(queryPos + 1),
+                request._query
+            );
         } else {
-            req._path = rawPath;
+            request._path = rawPath;
         }
     }
 
-    void parseHeaders(std::istream& in, Request& req) {
-        std::string line;
-        std::getline(in, line);
+    void parseHeaders(std::istream& input, Request& request) {
+        std::string headerLine;
+        std::getline(input, headerLine); // consume remainder
 
-        while (std::getline(in, line) && line != "\r") {
-            auto pos = line.find(':');
-            if (pos == std::string::npos) continue;
+        while (std::getline(input, headerLine) && headerLine != "\r") {
+            auto colonPos = headerLine.find(':');
+            if (colonPos == std::string::npos) continue;
 
-            std::string k = line.substr(0, pos);
-            std::string v = line.substr(pos + 1);
+            std::string headerKey = headerLine.substr(0, colonPos);
+            std::string headerValue = headerLine.substr(colonPos + 1);
 
-            METRO_HELPERS::trim(v);
-            req._headers[k] = v;
+            METRO_HELPERS::trim(headerValue);
+            request._headers[headerKey] = headerValue;
         }
     }
 
-    void parseBody(int client, std::string& buffer, Request& req) {
-        auto it = req._headers.find("Content-Length");
-        if (it == req._headers.end()) return;
+    void parseBody(int clientSocket,
+                   std::string& requestBuffer,
+                   Request& request) {
+        auto headerIt = request._headers.find("Content-Length");
+        if (headerIt == request._headers.end()) return;
 
-        size_t len = std::stoul(it->second);
+        size_t contentLength = std::stoul(headerIt->second);
 
-        size_t headerEnd = buffer.find("\r\n\r\n") + 4;
-        size_t already = buffer.size() - headerEnd;
+        size_t headersEndPos =
+            requestBuffer.find("\r\n\r\n") + 4;
+        size_t alreadyRead =
+            requestBuffer.size() - headersEndPos;
 
-        req._body.clear();
-        req._body.reserve(len);
+        request._body.clear();
+        request._body.reserve(contentLength);
 
-        if (already > 0) {
-            size_t take = std::min(already, len);
-            req._body.append(buffer.data() + headerEnd, take);
+        if (alreadyRead > 0) {
+            size_t bytesToCopy =
+                std::min(alreadyRead, contentLength);
+            request._body.append(
+                requestBuffer.data() + headersEndPos,
+                bytesToCopy
+            );
         }
 
-        while (req._body.size() < len) {
-            char temp[BUFFER_SIZE];
-            ssize_t n = recv(client, temp,
-                std::min(sizeof(temp), len - req._body.size()),
+        while (request._body.size() < contentLength) {
+            char bufferChunk[BUFFER_SIZE];
+            ssize_t bytesRead = recv(
+                clientSocket,
+                bufferChunk,
+                std::min(sizeof(bufferChunk),
+                         contentLength - request._body.size()),
                 0
             );
-            if (n <= 0) break;
-            req._body.append(temp, n);
+
+            if (bytesRead <= 0) break;
+            request._body.append(bufferChunk, bytesRead);
         }
     }
 
-
-    bool isKeepAlive(const Request& req) {
-        auto it = req._headers.find("Connection");
-        if (it == req._headers.end()) return true;
-        return it->second != "close";
+    bool isKeepAlive(const Request& request) {
+        auto headerIt = request._headers.find("Connection");
+        if (headerIt == request._headers.end()) return true;
+        return headerIt->second != "close";
     }
 
-    void writeResponse(int client, Context& ctx, bool keepAlive) {
-        std::ostringstream out;
+    void writeResponse(int clientSocket,
+                       Context& context,
+                       bool keepAlive) {
+        std::ostringstream responseStream;
 
-        out << "HTTP/1.1 " << ctx.res._status
-            << " " << METRO_HELPERS::reasonPhrase(ctx.res._status) << "\r\n";
+        responseStream
+            << "HTTP/1.1 "
+            << context.res._status << " "
+            << METRO_HELPERS::reasonPhrase(context.res._status)
+            << "\r\n";
 
-        for (auto& h : ctx.res._headers)
-            out << h.first << ": " << h.second << "\r\n";
+        for (const auto& header : context.res._headers) {
+            responseStream
+                << header.first << ": "
+                << header.second << "\r\n";
+        }
 
-        out << "Content-Length: " << ctx.res._body.size() << "\r\n";
-        out << "Connection: " << (keepAlive ? "keep-alive" : "close") << "\r\n";
-        out << "Date: " << METRO_HELPERS::getCurrentDate() << "\r\n\r\n";
-        out << ctx.res._body;
+        responseStream
+            << "Content-Length: "
+            << context.res._body.size() << "\r\n"
+            << "Connection: "
+            << (keepAlive ? "keep-alive" : "close") << "\r\n"
+            << "Date: "
+            << METRO_HELPERS::getCurrentDate()
+            << "\r\n\r\n"
+            << context.res._body;
 
-        auto s = out.str();
-        send(client, s.c_str(), s.size(), 0);
+        std::string responseString = responseStream.str();
+        send(clientSocket,
+             responseString.c_str(),
+             responseString.size(),
+             0);
     }
 };
