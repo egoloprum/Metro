@@ -163,6 +163,100 @@ namespace Metro {
           ltrim(s);
           rtrim(s);
       }
+
+      // Enhanced path validation
+      inline bool isValidPath(const std::string& path) {
+          // Check for null bytes
+          if (path.find('\0') != std::string::npos) {
+              return false;
+          }
+          
+          // Check for path traversal patterns
+          if (path.find("..") != std::string::npos) {
+              return false;
+          }
+          
+          // Check for control characters
+          for (char c : path) {
+              if (std::iscntrl(static_cast<unsigned char>(c))) {
+                  return false;
+              }
+          }
+          
+          // Check for dangerous sequences
+          const std::vector<std::string> dangerousPatterns = {
+              "//", "/./", "/../", "\\", "~"
+          };
+          
+          for (const auto& pattern : dangerousPatterns) {
+              if (path.find(pattern) != std::string::npos) {
+                  return false;
+              }
+          }
+          
+          return true;
+      }
+
+      // Path normalization
+      inline std::string normalizePath(const std::string& path) {
+          std::string normalized = path;
+          
+          // Remove query string and fragment
+          size_t query_pos = normalized.find('?');
+          if (query_pos != std::string::npos) {
+              normalized = normalized.substr(0, query_pos);
+          }
+          
+          size_t fragment_pos = normalized.find('#');
+          if (fragment_pos != std::string::npos) {
+              normalized = normalized.substr(0, fragment_pos);
+          }
+          
+          // Decode URL encoding
+          normalized = urlDecode(normalized);
+          
+          // Remove trailing slashes (except for root)
+          while (normalized.size() > 1 && normalized.back() == '/') {
+              normalized.pop_back();
+          }
+          
+          // Ensure path starts with /
+          if (normalized.empty() || normalized[0] != '/') {
+              normalized = "/" + normalized;
+          }
+          
+          return normalized;
+      }
+
+      // URL validation
+      inline bool isValidUrl(const std::string& url) {
+          // Basic URL validation
+          if (url.empty() || url.size() > 2048) {  // Reasonable URL length limit
+              return false;
+          }
+          
+          // Check for invalid characters
+          for (char c : url) {
+              if (c < 32 || c > 126) {  // Printable ASCII only
+                  return false;
+              }
+          }
+          
+          return true;
+      }
+
+      // Security headers helper
+      inline void addSecurityHeaders(Response& res) {
+          // Add common security headers
+          res.header("X-Content-Type-Options", "nosniff");
+          res.header("X-Frame-Options", "DENY");
+          res.header("X-XSS-Protection", "1; mode=block");
+          res.header("Referrer-Policy", "strict-origin-when-cross-origin");
+          
+          // Content Security Policy (basic)
+          res.header("Content-Security-Policy", 
+                    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'");
+      }
   }
 }  
 

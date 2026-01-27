@@ -5,17 +5,22 @@
 #include <optional>
 
 #include "http/http_types.h"
+#include "config.h"
 
 namespace Metro {
   struct Request {
       std::string _method;
       std::string _path;
+      std::string _original_path;
   
       Header _headers;
       std::string _body;
   
       std::unordered_map<std::string, std::string> _params;
       std::unordered_map<std::string, std::vector<std::string>> _query;
+
+      bool _parsing_error = false;
+      std::string _parsing_error_msg;
   
       Request() = default;
   
@@ -45,6 +50,14 @@ namespace Metro {
   
       const std::string& body() const { return _body; }
       std::string& body() { return _body; }
+
+      bool hasParsingError() const { return _parsing_error; }
+      const std::string& parsingErrorMessage() const { return _parsing_error_msg; }
+      
+      void setParsingError(const std::string& msg) {
+          _parsing_error = true;
+          _parsing_error_msg = msg;
+      }
   };
   
   struct Response {
@@ -75,10 +88,38 @@ namespace Metro {
           _body = txt;
           return *this;
       }
+
+      Response& chunked(bool enable = true) {
+          if (enable) {
+              _headers["Transfer-Encoding"] = "chunked";
+              _headers.erase("Content-Length");
+          } else {
+              _headers.erase("Transfer-Encoding");
+          }
+          return *this;
+      }
+      
+      Response& trailer(const std::string& key, const std::string& value) {
+          _headers["X-Trailer-" + key] = value;
+          return *this;
+      }
+      
+      Response& stream(const std::string& contentType = "application/octet-stream") {
+          chunked(true);
+          _headers["Content-Type"] = contentType;
+          return *this;
+      }
   };
   
   struct Context {
       Request req;
       Response res;
+
+      const Config* config = nullptr; 
+
+      bool isFeatureEnabled(const std::string& feature) const {
+        if (!config) return false;
+        return true;
+    }
   };
 }
