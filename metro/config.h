@@ -7,19 +7,20 @@ namespace Metro {
     // Server Configuration
     struct ServerConfig {
       int port                = 3000;
-      int timeout_seconds     = 5;
       int backlog_size        = 128;
+      int timeout_seconds     = 5;
       size_t max_buffer_size  = 8192;
       size_t max_header_size  = 64 * 1024;
     };
 
     // Security Configuration
     struct SecurityConfig {
-      size_t max_body_size              = 10 * 1024 * 1024; // 10MB default
-      bool enable_path_sanitization     = true;
-      bool reject_double_encoded_paths  = true;
+      size_t max_body_size              = 10 * 1024 * 1024;
       size_t max_query_params           = 100;
       size_t max_headers_count          = 100;
+      bool enable_keep_alive            = true;
+      bool enable_path_sanitization     = true;
+      bool reject_double_encoded_paths  = true;
     };
 
     // Static configuration loading

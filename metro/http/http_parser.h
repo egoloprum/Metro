@@ -323,6 +323,22 @@ namespace Metro {
   };
 
   class HttpParser {
+    static inline bool shouldKeepAlive(Context& context) {
+      auto conn = context.req.header(Constants::Http_Header::CONNECTION);
+      
+      // Example: If connection header has invalid value, return false
+      if (conn && *conn != Constants::Http_Connection::CLOSE && 
+          *conn != Constants::Http_Connection::KEEP_ALIVE &&
+          *conn != Constants::Http_Connection::UPGRADE) {
+        context.res
+          .status(Constants::Http_Status::BAD_REQUEST)
+          .text(Helpers::reasonPhrase(Constants::Http_Status::BAD_REQUEST));
+        return false;
+      }
+      
+      return true;
+    }
+
     public:
     static inline bool parse(
       int clientSocket,
@@ -350,6 +366,8 @@ namespace Metro {
 
       HttpHeadersParser headersParser(limits);
       if (!headersParser.parse(input, context)) return false;
+
+      if (!shouldKeepAlive(context)) { return false; }
 
       HttpBodyParser bodyParser(clientSocket, buffer, limits);
       if (!bodyParser.parse(context)) return false;
