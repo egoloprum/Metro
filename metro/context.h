@@ -5,8 +5,11 @@
 #include <optional>
 
 #include "http/http_types.h"
+#include "types.h"
 
 namespace Metro {
+  using namespace Types;
+
   struct Request {
       std::string _method;
       std::string _path;
@@ -74,6 +77,13 @@ namespace Metro {
           _headers["Content-Type"] = "text/plain; charset=utf-8";
           _body = txt;
           return *this;
+      }
+
+      Response& json(Json data, int code = -1) {
+        if (code != -1) _status = code;
+        _headers["Content-Type"] = "application/json";
+        _body = data;
+        return *this;
       }
   };
   
