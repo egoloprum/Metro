@@ -57,7 +57,13 @@ for server in server_404_test server_body_test server_middleware_test server_mul
       echo
       ;;
     server_body_test)
-      curl --silent --show-error --output - -i -X POST http://127.0.0.1:3003/echo -d "hello world"
+      curl -i -X POST http://127.0.0.1:3003/echo/text -H "Content-Type: text/plain" -d "Hello text"
+      echo
+      curl -i -X POST http://127.0.0.1:3003/echo/json -H "Content-Type: application/json" -d '{"msg":"Hello JSON"}'
+      echo
+      curl -i -X POST http://127.0.0.1:3003/echo/form -H "Content-Type: application/x-www-form-urlencoded" -d "key1=value1&key2=value2"
+      echo
+      curl -i -X POST http://127.0.0.1:3003/echo/binary -H "Content-Type: application/octet-stream" --data-binary $'\x01\x02\x03\x04'
       echo
       curl --silent --show-error --output - -i -X POST http://127.0.0.1:3003/echo
       echo

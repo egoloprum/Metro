@@ -87,8 +87,16 @@ namespace Metro {
         Context context;
   
         if (!HttpParser::parse(clientSocket, context, config)) { break; }
+
+        try {
+          app.handle(context);
+        } catch (const std::runtime_error& e) {
+          context.res
+            .status(Constants::Http_Status::UNSUPPORTED_MEDIA_TYPE)
+            .text(e.what());
+        }
   
-        app.handle(context);
+        // app.handle(context);
   
         HttpWriter::write(clientSocket, context, keepAlive);
       }

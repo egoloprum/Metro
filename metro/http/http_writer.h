@@ -6,6 +6,7 @@
 #include "context.h"
 #include "helpers.h"
 #include "constants.h"
+#include "types.h"
 
 namespace Metro {
   class HttpWriter {
@@ -18,6 +19,31 @@ namespace Metro {
   
     private:
 
+    static std::string bodyToString(const Types::Body& body) {
+      return std::visit([](const auto& content) -> std::string {
+        using T = std::decay_t<decltype(content)>;
+        
+        if constexpr (std::is_same_v<T, std::monostate>) {
+          return "";
+        } else if constexpr (std::is_same_v<T, std::string>) {
+          return content;
+        } else if constexpr (std::is_same_v<T, Types::Form>) {
+          std::string result;
+          for (const auto& [key, value] : content) {
+            if (!result.empty()) result += '&';
+            result += Helpers::urlEncode(key) + '=' + Helpers::urlEncode(value);
+          }
+          return result;
+        } else if constexpr (std::is_same_v<T, Types::Json>) {
+          return content.dump();
+        } else if constexpr (std::is_same_v<T, Types::Binary>) {
+          return std::string(content.begin(), content.end());
+        } else {
+          return "";
+        }
+      }, body);
+    }
+
     static std::string buildResponse(const Context& context, bool keepAlive) {
       std::ostringstream output;
         
@@ -26,8 +52,11 @@ namespace Metro {
       writeFixedHeaders(output, context, keepAlive);
         
       output << "\r\n";
-        
-      if (!context.res._body.empty()) { output << context.res._body; }
+
+      std::string body_str = bodyToString(context.res._body);
+      if (!body_str.empty()) { 
+        output << body_str; 
+      }
         
       return output.str();
     }
@@ -53,7 +82,7 @@ namespace Metro {
 
       if (!is_chunked) {
         output  << Constants::Http_Header::CONTENT_LENGTH << ": " 
-                << context.res._body.size() 
+                << bodyToString(context.res._body).size()
                 << "\r\n";
       }
       

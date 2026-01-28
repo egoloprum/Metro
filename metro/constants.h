@@ -158,6 +158,7 @@ namespace Metro {
         constexpr const char* APPLICATION_XML               = "application/xml";
         constexpr const char* APPLICATION_FORM_URLENCODED   = "application/x-www-form-urlencoded";
         constexpr const char* MULTIPART_FORM_DATA           = "multipart/form-data";
+        constexpr const char* TEXT                          = "text/";
         constexpr const char* TEXT_PLAIN                    = "text/plain";
         constexpr const char* TEXT_HTML                     = "text/html";
         constexpr const char* TEXT_CSS                      = "text/css";

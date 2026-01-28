@@ -13,6 +13,7 @@
 #include "helpers.h"
 #include "constants.h"
 #include "config.h"
+#include "types.h"
 
 namespace Metro {
   class HttpLimits {
@@ -229,9 +230,44 @@ namespace Metro {
 
       std::string key = line.substr(0, pos);
       std::string value = line.substr(pos + 1);
-      Helpers::trim(value);
+      trim(value);
 
       context.req._headers[key] = value;
+    }
+
+    inline void trim(std::string& value) {
+      constexpr char space_char = ' ';
+      constexpr char tab_char = '\t';
+      constexpr char carriage_return_char = '\r';
+      constexpr char newline_char = '\n';
+      
+      // Left trim
+      size_t trim_start_position = 0;
+      while (trim_start_position < value.size()) {
+        const char current_char = value[trim_start_position];
+        if (current_char != space_char && 
+          current_char != tab_char && 
+          current_char != carriage_return_char && 
+          current_char != newline_char) {
+          break;
+        }
+        ++trim_start_position;
+      }
+      value.erase(0, trim_start_position);
+        
+      // Right trim
+      size_t trim_end_position = value.size();
+      while (trim_end_position > 0) {
+        const char current_char = value[trim_end_position - 1];
+        if (current_char != space_char && 
+          current_char != tab_char && 
+          current_char != carriage_return_char && 
+          current_char != newline_char) {
+          break;
+        }
+        --trim_end_position;
+      }
+      value.erase(trim_end_position);
     }
   };
 
@@ -249,11 +285,16 @@ namespace Metro {
     bool parse(Context& context) {
       if (!validateTransferEncoding(context)) return false;
       if (!readInitialBody(context)) return false;
-      return readRemainingBody(context);
+      if (!readRemainingBody(context)) return false;
+
+      context.req._body = parseBody(context);
+
+      return true;
     }
 
     private:
     int clientSocket;
+    std::string rawBody;
     const std::string& buffer;
     const HttpLimits& limits;
 
@@ -275,7 +316,7 @@ namespace Metro {
         context.req.header(Constants::Http_Header::CONTENT_LENGTH);
 
       if (!contentLengthHeader) {
-        context.req._body.clear();
+        rawBody.clear();
         return true;
       }
 
@@ -288,7 +329,7 @@ namespace Metro {
       }
 
       size_t header_end = buffer.find("\r\n\r\n") + 4;
-      context.req._body.assign(
+      rawBody.assign(
         buffer.data() + header_end,
         std::min(content_length, buffer.size() - header_end)
       );
@@ -302,16 +343,16 @@ namespace Metro {
       if (!contentLengthHeader) return true;
 
       size_t content_length = std::stoul(*contentLengthHeader);
-      char chunk[limits.max_buffer_size];
+      std::vector<char> chunk(limits.max_buffer_size);
 
-      while (context.req._body.size() < content_length) {
-        ssize_t bytes_read = recv(clientSocket, chunk, sizeof(chunk), 0);
+      while (rawBody.size() < content_length) {
+        ssize_t bytes_read = recv(clientSocket, chunk.data(), chunk.size(), 0);
 
         if (bytes_read <= 0) break;
 
-        context.req._body.append(chunk, bytes_read);
+        rawBody.append(chunk.data(), bytes_read);
 
-        if (context.req._body.size() > limits.max_body_size) {
+        if (rawBody.size() > limits.max_body_size) {
           context.res
             .status(Constants::Http_Status::PAYLOAD_TOO_LARGE)
             .text(Helpers::reasonPhrase(Constants::Http_Status::PAYLOAD_TOO_LARGE));
@@ -320,13 +361,56 @@ namespace Metro {
       }
       return true;
     }
+
+    Types::Body parseBody(Context& context) {
+      using namespace Types;
+
+      auto contentType = context.req.header(Constants::Http_Header::CONTENT_TYPE);
+      if (!contentType || rawBody.empty()) {
+        return std::monostate{};
+      }
+
+      const std::string& raw = rawBody;
+
+      if (contentType->find(Constants::Http_Content_Type::APPLICATION_JSON) != std::string::npos) {
+        try {
+          return Json::parse(raw);
+        } catch (const std::exception& e) {
+          return raw;
+        }
+      }
+
+      if (contentType->find(Constants::Http_Content_Type::APPLICATION_FORM_URLENCODED) != std::string::npos) {
+        return parseForm(raw);
+      }
+
+      if (contentType->find(Constants::Http_Content_Type::TEXT) != std::string::npos ||
+          contentType->find(Constants::Http_Content_Type::APPLICATION_JAVASCRIPT) != std::string::npos) {
+        return raw;
+      }
+
+      return Binary(raw.begin(), raw.end());
+    }
+
+    Types::Form parseForm(const std::string& body) {
+      Types::Form form_data;
+      std::unordered_map<std::string, std::vector<std::string>> temp;
+      Helpers::parseQuery(body, temp);
+      
+      // Convert to Form (unordered_map<string, string>)
+      for (const auto& [key, values] : temp) {
+        if (!values.empty()) {
+          form_data[key] = values[0];
+        }
+      }
+      return form_data;
+    }
   };
 
   class HttpParser {
     static inline bool shouldKeepAlive(Context& context) {
       auto conn = context.req.header(Constants::Http_Header::CONNECTION);
       
-      // Example: If connection header has invalid value, return false
       if (conn && *conn != Constants::Http_Connection::CLOSE && 
           *conn != Constants::Http_Connection::KEEP_ALIVE &&
           *conn != Constants::Http_Connection::UPGRADE) {

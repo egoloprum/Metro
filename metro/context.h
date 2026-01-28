@@ -10,49 +10,98 @@ namespace Metro {
   using namespace Types;
 
   struct Request {
-      std::string _method;
-      std::string _path;
-  
-      Header  _headers;
-      std::string    _body;
-  
-      std::unordered_map<std::string, std::string> _params;
-      std::unordered_map<std::string, std::vector<std::string>> _query;
-  
-      Request() = default;
-  
-      std::optional<std::string> header(const std::string& key) const {
-          auto it = _headers.find(key);
-          if (it != _headers.end()) return it->second;
-          return {};
+    private:
+
+    template <typename T>
+    T& expectBody(const char* expectedType) {
+      if (!std::holds_alternative<T>(_body)) {
+        throw std::runtime_error(
+          std::string("Invalid body type, expected ") + expectedType
+        );
       }
+      return std::get<T>(_body);
+    }
+
+    public:
+
+    std::string _method;
+    std::string _path;
+
+    Header  _headers;
+    Body    _body;
+
+    std::unordered_map<std::string, std::string> _params;
+    std::unordered_map<std::string, std::vector<std::string>> _query;
+
+    Request() = default;
+
+    std::optional<std::string> header(const std::string& key) const {
+        auto it = _headers.find(key);
+        if (it != _headers.end()) return it->second;
+        return {};
+    }
   
-      std::string params(const std::string& key) const {
-          auto it = _params.find(key);
-          if (it != _params.end()) return it->second;
-          return "";
-      }
-  
-      std::string query(const std::string& key) const {
-          auto it = _query.find(key);
-          if (it == _query.end() || it->second.empty()) return "";
-          return it->second[0];
-      }
-  
-      const std::vector<std::string>& queries(const std::string& key) const {
-          static const std::vector<std::string> empty;
-          auto it = _query.find(key);
-          return it == _query.end() ? empty : it->second;
-      }
-  
-      const std::string& body() const { return _body; }
-      std::string& body() { return _body; }
+    std::string params(const std::string& key) const {
+        auto it = _params.find(key);
+        if (it != _params.end()) return it->second;
+        return "";
+    }
+
+    std::string query(const std::string& key) const {
+        auto it = _query.find(key);
+        if (it == _query.end() || it->second.empty()) return "";
+        return it->second[0];
+    }
+
+    const std::vector<std::string>& queries(const std::string& key) const {
+        static const std::vector<std::string> empty;
+        auto it = _query.find(key);
+        return it == _query.end() ? empty : it->second;
+    }
+
+    // const Body& body() const { 
+    //   return _body; 
+    // }
+
+    // Body& body() { return _body; }
+
+    Text& text() {
+      return expectBody<Text>("text");
+    }
+
+    Json& json() {
+      return expectBody<Json>("json");
+    }
+
+    Form& form() {
+      return expectBody<Form>("form");
+    }
+
+    Binary& binary() {
+      return expectBody<Binary>("binary");
+    }
+
+    const Text& text() const {
+      return const_cast<Request*>(this)->text();
+    }
+
+    const Json& json() const {
+      return const_cast<Request*>(this)->json();
+    }
+
+    const Form& form() const {
+      return const_cast<Request*>(this)->form();
+    }
+
+    const Binary& binary() const {
+      return const_cast<Request*>(this)->binary();
+    }
   };
   
   struct Response {
       int     _status = 200;
       Header  _headers;
-      std::string    _body;
+      Body    _body;
   
       Response() = default;
   
@@ -66,8 +115,8 @@ namespace Metro {
           return *this;
       }
   
-      Response& body(const std::string& b) {
-          _body = b;
+      Response& body(Body body) {
+          _body = body;
           return *this;
       }
   
