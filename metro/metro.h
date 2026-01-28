@@ -32,7 +32,9 @@ namespace Metro {
               }
           }
   
-          context.res.status(404).text("Not Found");
+          context.res
+            .status(Constants::Http_Status::NOT_FOUND)
+            .text(Helpers::reasonPhrase(Constants::Http_Status::NOT_FOUND));
       }
   
   public:
