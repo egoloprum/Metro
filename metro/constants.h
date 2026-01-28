@@ -11,7 +11,7 @@ namespace Metro {
         constexpr const char* OPTIONS = "OPTIONS";
         constexpr const char* HEAD = "HEAD";
     }
-    
+
     namespace Http_Status {
         // 1xx Informational
         constexpr short CONTINUE = 100;

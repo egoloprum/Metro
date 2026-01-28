@@ -2,7 +2,7 @@
 set -e
 
 CXX=${CXX:-g++}
-CXXFLAGS="-std=c++20 -O0 -g"
+CXXFLAGS="-std=c++17 -Wall -Wextra -Werror -I metro"
 
 mkdir -p bin
 

@@ -4,7 +4,6 @@
 #include <unordered_map>
 #include <optional>
 
-#include "http/http_types.h"
 #include "types.h"
 
 namespace Metro {
@@ -14,8 +13,8 @@ namespace Metro {
       std::string _method;
       std::string _path;
   
-      Header _headers;
-      std::string _body;
+      Header  _headers;
+      std::string    _body;
   
       std::unordered_map<std::string, std::string> _params;
       std::unordered_map<std::string, std::vector<std::string>> _query;
@@ -51,9 +50,9 @@ namespace Metro {
   };
   
   struct Response {
-      int _status = 200;
-      Header _headers;
-      std::string _body;
+      int     _status = 200;
+      Header  _headers;
+      std::string    _body;
   
       Response() = default;
   

@@ -1,8 +1,8 @@
 #include <iostream>
 
-#include "../metro/metro.h"
-#include "../metro/server.h"
-#include "../metro/middleware.h"
+#include "metro.h"
+#include "server.h"
+#include "middleware.h"
 
 int main() {
     using namespace Metro;

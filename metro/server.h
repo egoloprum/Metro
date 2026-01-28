@@ -12,6 +12,7 @@
 
 #include "metro.h"
 #include "helpers.h"
+#include "config.h"
 #include "http/http_parser.h"
 #include "http/http_writer.h"
 
@@ -22,6 +23,7 @@ namespace Metro {
   class Server {
       App& app;
       int port;
+      Config config;
   
   public:
       Server(App& appInstance, int listenPort)
@@ -94,8 +96,8 @@ namespace Metro {
   
               if (!HttpParser::parse(
                       clientSocket,
-                      context.req,
-                      keepAlive
+                      context,
+                      config
                   )) {
                   break;
               }
