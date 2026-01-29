@@ -116,10 +116,7 @@ namespace Metro {
         Context context;
 
         if (!HttpParser::parse(clientSocket, context, config)) { 
-          if (context.res._status >= 400) {
-            HttpWriter::write(clientSocket, context, false);
-          }
-
+          HttpWriter::write(clientSocket, context, false);
           break;
         }
 

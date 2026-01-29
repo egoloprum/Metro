@@ -5,6 +5,8 @@
 #include <optional>
 
 #include "types.h"
+#include "constants.h"
+#include "http/http_error.h"
 
 namespace Metro {
   using namespace Types;
@@ -15,7 +17,8 @@ namespace Metro {
     template <typename T>
     T& expectBody(const char* expectedType) {
       if (!std::holds_alternative<T>(_body)) {
-        throw std::runtime_error(
+        throw HttpError(
+          Constants::Http_Status::UNSUPPORTED_MEDIA_TYPE,
           std::string("Invalid body type, expected ") + expectedType
         );
       }

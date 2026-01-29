@@ -17,6 +17,8 @@
 #include "http_error.h"
 
 namespace Metro {
+  using namespace Types;
+
   class HttpLimits {
     public:
     explicit HttpLimits(const Config& config) : 
@@ -330,6 +332,14 @@ namespace Metro {
 
       if (!contentLengthHeader) {
         rawBody.clear();
+
+        if (buffer.find("\r\n\r\n") + 4 < buffer.size()) {
+          throw HttpError(
+            Constants::Http_Status::UNSUPPORTED_MEDIA_TYPE,
+            "Missing Content-Type"
+          );
+        }
+
         return true;
       }
 
@@ -397,24 +407,16 @@ namespace Metro {
       }
     }
 
-    Types::Body parseBody(Context& context) {
-      using namespace Types;
-
+    Body parseBody(Context& context) {
       auto contentType = context.req.header(Constants::Http_Header::CONTENT_TYPE);
 
-      if (!contentType) {
-        if (!rawBody.empty()) {
-          throw HttpError(
-            Constants::Http_Status::UNSUPPORTED_MEDIA_TYPE,
-            "Missing Content-Type"
-          );
-        }
-        return std::monostate{};
-      }
-
       if (rawBody.empty()) {
+        if (!contentType) {
+          return Text{};
+        }
+
         if (contentType->find(Constants::Http_Content_Type::APPLICATION_JSON) != std::string::npos) {
-          return Json{};
+          return Json{}; 
         }
 
         if (contentType->find(Constants::Http_Content_Type::APPLICATION_FORM_URLENCODED) != std::string::npos) {
@@ -423,10 +425,17 @@ namespace Metro {
 
         if (contentType->find(Constants::Http_Content_Type::TEXT) != std::string::npos ||
             contentType->find(Constants::Http_Content_Type::APPLICATION_JAVASCRIPT) != std::string::npos) {
-          return std::string{};
+          return Text{};
         }
 
         return Binary{};
+      }
+
+      if (!contentType) {
+        throw HttpError(
+          Constants::Http_Status::UNSUPPORTED_MEDIA_TYPE,
+          Helpers::reasonPhrase(Constants::Http_Status::UNSUPPORTED_MEDIA_TYPE)
+        );
       }
 
       if (contentType->find(Constants::Http_Content_Type::APPLICATION_JSON) != std::string::npos) {
@@ -442,9 +451,11 @@ namespace Metro {
 
       if (contentType->find(Constants::Http_Content_Type::APPLICATION_FORM_URLENCODED) != std::string::npos) {
         Form form;
-        std::unordered_map<std::string, std::vector<std::string>> tmp;
-        Helpers::parseQuery(rawBody, tmp);
-        for (auto& [key, value] : tmp) if (!value.empty()) form[key] = value[0];
+        std::unordered_map<std::string, std::vector<std::string>> temp;
+        Helpers::parseQuery(rawBody, temp);
+        for (auto& [key, value] : temp) {
+          if (!value.empty()) form[key] = value[0];
+        }
         return form;
       }
 
@@ -454,19 +465,6 @@ namespace Metro {
       }
 
       return Binary(rawBody.begin(), rawBody.end());
-    }
-
-    Types::Form parseForm(const std::string& body) {
-      Types::Form form_data;
-      std::unordered_map<std::string, std::vector<std::string>> temp;
-      Helpers::parseQuery(body, temp);
-      
-      for (const auto& [key, values] : temp) {
-        if (!values.empty()) {
-          form_data[key] = values[0];
-        }
-      }
-      return form_data;
     }
   };
 
@@ -510,15 +508,15 @@ namespace Metro {
         std::istringstream input(buffer);
   
         HttpRequestLineParser requestLineParser(limits);
-        if (!requestLineParser.parse(input, context)) return false;
+        if (!requestLineParser.parse(input, context)) { return false; }
   
         HttpHeadersParser headersParser(limits);
-        if (!headersParser.parse(input, context)) return false;
+        if (!headersParser.parse(input, context)) { return false; }
   
         if (!shouldKeepAlive(context)) { return false; }
   
         HttpBodyParser bodyParser(clientSocket, buffer, limits);
-        if (!bodyParser.parse(context)) return false;
+        if (!bodyParser.parse(context)) { return false; }
  
         return true;
       } catch (const HttpError& e) {
