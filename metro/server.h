@@ -45,8 +45,24 @@ namespace Metro {
     private:
     int createSocket() {
       int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+
+      if (serverSocket < 0) {
+        throw std::system_error(
+          std::error_code(errno, std::system_category()),
+          "Failed to create socket"
+        );
+      }
+
       int reuseAddress = 1;
-      setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &reuseAddress, sizeof(reuseAddress));
+
+      if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &reuseAddress, sizeof(reuseAddress)) < 0) {
+        close(serverSocket);
+        throw std::system_error(
+          std::error_code(errno, std::system_category()),
+          "Failed to set socket option SO_REUSEADDR"
+        );
+      }
+
       return serverSocket;
     }
   
@@ -55,27 +71,40 @@ namespace Metro {
       address.sin_family = AF_INET;
       address.sin_addr.s_addr = INADDR_ANY;
       address.sin_port = htons(port);
-  
+
       if (bind(serverSocket, reinterpret_cast<sockaddr*>(&address), sizeof(address)) < 0) {
-        perror("bind");
-        exit(1);
+        close(serverSocket);
+        throw std::system_error(
+          std::error_code(errno, std::system_category()),
+          "Failed to bind socket to port " + std::to_string(port)
+        );
       }
     }
   
     void startListen(int serverSocket) {
       if (::listen(serverSocket, config.server().backlog_size) < 0) {
-        perror("listen");
-        exit(1);
+        close(serverSocket);
+        throw std::system_error(
+          std::error_code(errno, std::system_category()),
+          "Failed to listen on socket"
+        );
       }
     }
   
     void setTimeout(int socketFd) {
       timeval timeout{};
-      timeout.tv_sec = 5;
+      timeout.tv_sec = config.server().timeout_seconds;
       timeout.tv_usec = 0;
   
-      setsockopt(socketFd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-      setsockopt(socketFd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+      if (setsockopt(socketFd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
+        std::cerr << "Warning: Failed to set receive timeout on socket: " 
+                  << std::strerror(errno) << std::endl;
+      }
+
+      if (setsockopt(socketFd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) < 0) {
+        std::cerr << "Warning: Failed to set send timeout on socket: " 
+                  << std::strerror(errno) << std::endl;
+      }
     }
   
     void handleConnection(int clientSocket) {
@@ -94,9 +123,17 @@ namespace Metro {
           context.res
             .status(Constants::Http_Status::UNSUPPORTED_MEDIA_TYPE)
             .text(e.what());
+        } catch (const std::exception& e) {
+          context.res
+            .status(Constants::Http_Status::INTERNAL_SERVER_ERROR)
+            .text(Helpers::reasonPhrase(Constants::Http_Status::INTERNAL_SERVER_ERROR));
+          std::cerr << "Error handling request: " << e.what() << std::endl;
+        } catch (...) {
+          context.res
+            .status(Constants::Http_Status::INTERNAL_SERVER_ERROR)
+            .text(Helpers::reasonPhrase(Constants::Http_Status::INTERNAL_SERVER_ERROR));
+          std::cerr << "Unknown error handling request" << std::endl;
         }
-  
-        // app.handle(context);
   
         HttpWriter::write(clientSocket, context, keepAlive);
       }
