@@ -106,37 +106,43 @@ namespace Metro {
                   << std::strerror(errno) << std::endl;
       }
     }
-  
+
     void handleConnection(int clientSocket) {
       setTimeout(clientSocket);
 
       bool keepAlive = config.security().enable_keep_alive;
-  
+
       while (keepAlive) {
         Context context;
-  
-        if (!HttpParser::parse(clientSocket, context, config)) { break; }
+
+        if (!HttpParser::parse(clientSocket, context, config)) { 
+          if (context.res._status >= 400) {
+            HttpWriter::write(clientSocket, context, false);
+          }
+
+          break;
+        }
 
         try {
           app.handle(context);
-        } catch (const std::runtime_error& e) {
-          context.res
-            .status(Constants::Http_Status::UNSUPPORTED_MEDIA_TYPE)
-            .text(e.what());
+        } catch (const HttpError& e) {
+          context.res.status(e.status()).text(e.what());
         } catch (const std::exception& e) {
           context.res
             .status(Constants::Http_Status::INTERNAL_SERVER_ERROR)
             .text(Helpers::reasonPhrase(Constants::Http_Status::INTERNAL_SERVER_ERROR));
           std::cerr << "Error handling request: " << e.what() << std::endl;
-        } catch (...) {
-          context.res
-            .status(Constants::Http_Status::INTERNAL_SERVER_ERROR)
-            .text(Helpers::reasonPhrase(Constants::Http_Status::INTERNAL_SERVER_ERROR));
-          std::cerr << "Unknown error handling request" << std::endl;
         }
-  
+
         HttpWriter::write(clientSocket, context, keepAlive);
+
+        auto connHeader = context.req.header(Constants::Http_Header::CONNECTION);
+        if (connHeader && *connHeader == Constants::Http_Connection::CLOSE) {
+          keepAlive = false;
+        }
       }
+
+      close(clientSocket);
     }
   };
 }

@@ -14,6 +14,7 @@
 #include "constants.h"
 #include "config.h"
 #include "types.h"
+#include "http_error.h"
 
 namespace Metro {
   class HttpLimits {
@@ -80,8 +81,18 @@ namespace Metro {
     }
 
     bool checkLimits() const {
-      if (buffer.size() > limits.max_header_size) return false;
-      if (total_bytes_read > limits.max_body_size) return false;
+      if (buffer.size() > limits.max_header_size) {
+        throw HttpError(
+          Constants::Http_Status::REQUEST_HEADER_FIELDS_TOO_LARGE, 
+          Helpers::reasonPhrase(Constants::Http_Status::REQUEST_HEADER_FIELDS_TOO_LARGE)
+        );
+      }
+      if (total_bytes_read > limits.max_body_size) {
+        throw HttpError(
+          Constants::Http_Status::PAYLOAD_TOO_LARGE, 
+          Helpers::reasonPhrase(Constants::Http_Status::PAYLOAD_TOO_LARGE)
+        );
+      };
       return true;
     }
   };
@@ -104,16 +115,22 @@ namespace Metro {
     bool readRequestLine(std::istream& input, Context& context) {
       std::string version;
       input >> context.req._method >> rawPath >> version;
-      return !rawPath.empty();
+      if (rawPath.empty()) {
+        throw HttpError(
+          Constants::Http_Status::BAD_REQUEST, 
+          Helpers::reasonPhrase(Constants::Http_Status::BAD_REQUEST)
+        );
+      }
+      return true;
     }
 
     bool processPath(Context& context) {
       rawPath = sanitizePath(rawPath);
       if (rawPath.empty()) {
-        context.res
-          .status(Constants::Http_Status::BAD_REQUEST)
-          .text(Helpers::reasonPhrase(Constants::Http_Status::BAD_REQUEST));
-        return false;
+        throw HttpError(
+          Constants::Http_Status::BAD_REQUEST, 
+          Helpers::reasonPhrase(Constants::Http_Status::BAD_REQUEST)
+        );
       }
 
       auto query = rawPath.find('?');
@@ -131,10 +148,10 @@ namespace Metro {
       Context& context
     ) {
       if (countQueryParams(queryString) > limits.max_query_params) {
-        context.res
-          .status(Constants::Http_Status::URI_TOO_LONG)
-          .text(Helpers::reasonPhrase(Constants::Http_Status::URI_TOO_LONG));
-        return false;
+        throw HttpError(
+          Constants::Http_Status::URI_TOO_LONG, 
+          Helpers::reasonPhrase(Constants::Http_Status::URI_TOO_LONG)
+        );
       }
 
       Helpers::parseQuery(queryString, context.req._query);
@@ -194,7 +211,7 @@ namespace Metro {
       skipRequestLine(input);
 
       while (readNextHeaderLine(input)) {
-        if (!validateHeaderCount(context)) return false;
+        if (!validateHeaderCount()) { return false; }
         storeHeader(context);
       }
       return true;
@@ -214,12 +231,12 @@ namespace Metro {
       return line != "\r";
     }
 
-    bool validateHeaderCount(Context& context) {
+    bool validateHeaderCount() {
       if (++header_count > limits.max_headers_count) {
-        context.res
-          .status(Constants::Http_Status::REQUEST_HEADER_FIELDS_TOO_LARGE)
-          .text(Helpers::reasonPhrase(Constants::Http_Status::REQUEST_HEADER_FIELDS_TOO_LARGE));
-        return false;
+        throw HttpError(
+          Constants::Http_Status::REQUEST_HEADER_FIELDS_TOO_LARGE, 
+          Helpers::reasonPhrase(Constants::Http_Status::REQUEST_HEADER_FIELDS_TOO_LARGE)
+        );
       }
       return true;
     }
@@ -273,11 +290,7 @@ namespace Metro {
 
   class HttpBodyParser {
     public:
-    HttpBodyParser(
-      int clientSocket,
-      const std::string& buffer,
-      const HttpLimits& limits
-    )
+    HttpBodyParser(int clientSocket, const std::string& buffer, const HttpLimits& limits)
       : clientSocket(clientSocket),
         buffer(buffer),
         limits(limits) {}
@@ -303,10 +316,10 @@ namespace Metro {
         context.req.header(Constants::Http_Header::TRANSFER_ENCODING);
 
       if (transferEncoding && *transferEncoding == "chunked") {
-        context.res
-          .status(Constants::Http_Status::LENGTH_REQUIRED)
-          .text(Helpers::reasonPhrase(Constants::Http_Status::LENGTH_REQUIRED));
-        return false;
+        throw HttpError(
+          Constants::Http_Status::LENGTH_REQUIRED, 
+          Helpers::reasonPhrase(Constants::Http_Status::LENGTH_REQUIRED)
+        );
       }
       return true;
     }
@@ -320,21 +333,34 @@ namespace Metro {
         return true;
       }
 
-      size_t content_length = std::stoul(*contentLengthHeader);
-      if (content_length > limits.max_body_size) {
-        context.res
-          .status(Constants::Http_Status::PAYLOAD_TOO_LARGE)
-          .text(Helpers::reasonPhrase(Constants::Http_Status::PAYLOAD_TOO_LARGE));
-        return false;
+      try {
+        size_t content_length = std::stoul(*contentLengthHeader);
+        if (content_length > limits.max_body_size) {
+          throw HttpError(
+            Constants::Http_Status::PAYLOAD_TOO_LARGE, 
+            Helpers::reasonPhrase(Constants::Http_Status::PAYLOAD_TOO_LARGE)
+          );
+        }
+
+        size_t header_end = buffer.find("\r\n\r\n") + 4;
+        rawBody.assign(
+          buffer.data() + header_end,
+          std::min(content_length, buffer.size() - header_end)
+        );
+
+        return true;
       }
-
-      size_t header_end = buffer.find("\r\n\r\n") + 4;
-      rawBody.assign(
-        buffer.data() + header_end,
-        std::min(content_length, buffer.size() - header_end)
-      );
-
-      return true;
+      catch (const std::invalid_argument& e) {
+        throw HttpError(
+          Constants::Http_Status::BAD_REQUEST, 
+          Helpers::reasonPhrase(Constants::Http_Status::BAD_REQUEST)
+        );
+      } catch (const std::out_of_range& e) {
+        throw HttpError(
+          Constants::Http_Status::PAYLOAD_TOO_LARGE, 
+          Helpers::reasonPhrase(Constants::Http_Status::PAYLOAD_TOO_LARGE)
+        );
+      }
     }
 
     bool readRemainingBody(Context& context) {
@@ -342,54 +368,92 @@ namespace Metro {
         context.req.header(Constants::Http_Header::CONTENT_LENGTH);
       if (!contentLengthHeader) return true;
 
-      size_t content_length = std::stoul(*contentLengthHeader);
-      std::vector<char> chunk(limits.max_buffer_size);
-
-      while (rawBody.size() < content_length) {
-        ssize_t bytes_read = recv(clientSocket, chunk.data(), chunk.size(), 0);
-
-        if (bytes_read <= 0) break;
-
-        rawBody.append(chunk.data(), bytes_read);
-
-        if (rawBody.size() > limits.max_body_size) {
-          context.res
-            .status(Constants::Http_Status::PAYLOAD_TOO_LARGE)
-            .text(Helpers::reasonPhrase(Constants::Http_Status::PAYLOAD_TOO_LARGE));
-          return false;
+      try {
+        size_t content_length = std::stoul(*contentLengthHeader);
+        std::vector<char> chunk(limits.max_buffer_size);
+  
+        while (rawBody.size() < content_length) {
+          ssize_t bytes_read = recv(clientSocket, chunk.data(), chunk.size(), 0);
+  
+          if (bytes_read <= 0) break;
+  
+          rawBody.append(chunk.data(), bytes_read);
+  
+          if (rawBody.size() > limits.max_body_size) {
+            throw HttpError(
+              Constants::Http_Status::PAYLOAD_TOO_LARGE, 
+              Helpers::reasonPhrase(Constants::Http_Status::PAYLOAD_TOO_LARGE)
+            );
+          }
         }
+
+        return true;
       }
-      return true;
+      catch (const std::exception& e) {
+        throw HttpError(
+          Constants::Http_Status::BAD_REQUEST, 
+          Helpers::reasonPhrase(Constants::Http_Status::BAD_REQUEST)
+        );
+      }
     }
 
     Types::Body parseBody(Context& context) {
       using namespace Types;
 
       auto contentType = context.req.header(Constants::Http_Header::CONTENT_TYPE);
-      if (!contentType || rawBody.empty()) {
+
+      if (!contentType) {
+        if (!rawBody.empty()) {
+          throw HttpError(
+            Constants::Http_Status::UNSUPPORTED_MEDIA_TYPE,
+            "Missing Content-Type"
+          );
+        }
         return std::monostate{};
       }
 
-      const std::string& raw = rawBody;
+      if (rawBody.empty()) {
+        if (contentType->find(Constants::Http_Content_Type::APPLICATION_JSON) != std::string::npos) {
+          return Json{};
+        }
+
+        if (contentType->find(Constants::Http_Content_Type::APPLICATION_FORM_URLENCODED) != std::string::npos) {
+          return Form{};
+        }
+
+        if (contentType->find(Constants::Http_Content_Type::TEXT) != std::string::npos ||
+            contentType->find(Constants::Http_Content_Type::APPLICATION_JAVASCRIPT) != std::string::npos) {
+          return std::string{};
+        }
+
+        return Binary{};
+      }
 
       if (contentType->find(Constants::Http_Content_Type::APPLICATION_JSON) != std::string::npos) {
         try {
-          return Json::parse(raw);
-        } catch (const std::exception& e) {
-          return raw;
+          return Json::parse(rawBody);
+        } catch (...) {
+          throw HttpError(
+            Constants::Http_Status::BAD_REQUEST,
+            "Malformed JSON body"
+          );
         }
       }
 
       if (contentType->find(Constants::Http_Content_Type::APPLICATION_FORM_URLENCODED) != std::string::npos) {
-        return parseForm(raw);
+        Form form;
+        std::unordered_map<std::string, std::vector<std::string>> tmp;
+        Helpers::parseQuery(rawBody, tmp);
+        for (auto& [key, value] : tmp) if (!value.empty()) form[key] = value[0];
+        return form;
       }
 
       if (contentType->find(Constants::Http_Content_Type::TEXT) != std::string::npos ||
           contentType->find(Constants::Http_Content_Type::APPLICATION_JAVASCRIPT) != std::string::npos) {
-        return raw;
+        return rawBody;
       }
 
-      return Binary(raw.begin(), raw.end());
+      return Binary(rawBody.begin(), rawBody.end());
     }
 
     Types::Form parseForm(const std::string& body) {
@@ -397,7 +461,6 @@ namespace Metro {
       std::unordered_map<std::string, std::vector<std::string>> temp;
       Helpers::parseQuery(body, temp);
       
-      // Convert to Form (unordered_map<string, string>)
       for (const auto& [key, values] : temp) {
         if (!values.empty()) {
           form_data[key] = values[0];
@@ -414,10 +477,10 @@ namespace Metro {
       if (conn && *conn != Constants::Http_Connection::CLOSE && 
           *conn != Constants::Http_Connection::KEEP_ALIVE &&
           *conn != Constants::Http_Connection::UPGRADE) {
-        context.res
-          .status(Constants::Http_Status::BAD_REQUEST)
-          .text(Helpers::reasonPhrase(Constants::Http_Status::BAD_REQUEST));
-        return false;
+        throw HttpError(
+          Constants::Http_Status::BAD_REQUEST, 
+          Helpers::reasonPhrase(Constants::Http_Status::BAD_REQUEST)
+        );
       }
       
       return true;
@@ -432,31 +495,40 @@ namespace Metro {
       std::string buffer;
       size_t total_bytes_read = 0;
 
-      HttpLimits limits(config);
+      try {  
+        HttpLimits limits(config);
+  
+        HttpHeaderReader headerReader(
+          clientSocket,
+          buffer,
+          total_bytes_read,
+          limits
+        );
+        
+        if (!headerReader.read()) return false;
+  
+        std::istringstream input(buffer);
+  
+        HttpRequestLineParser requestLineParser(limits);
+        if (!requestLineParser.parse(input, context)) return false;
+  
+        HttpHeadersParser headersParser(limits);
+        if (!headersParser.parse(input, context)) return false;
+  
+        if (!shouldKeepAlive(context)) { return false; }
+  
+        HttpBodyParser bodyParser(clientSocket, buffer, limits);
+        if (!bodyParser.parse(context)) return false;
+ 
+        return true;
+      } catch (const HttpError& e) {
+        context.res
+          .status(e.status())
+          .text(e.what());
 
-      HttpHeaderReader headerReader(
-        clientSocket,
-        buffer,
-        total_bytes_read,
-        limits
-      );
-      
-      if (!headerReader.read()) return false;
-
-      std::istringstream input(buffer);
-
-      HttpRequestLineParser requestLineParser(limits);
-      if (!requestLineParser.parse(input, context)) return false;
-
-      HttpHeadersParser headersParser(limits);
-      if (!headersParser.parse(input, context)) return false;
-
-      if (!shouldKeepAlive(context)) { return false; }
-
-      HttpBodyParser bodyParser(clientSocket, buffer, limits);
-      if (!bodyParser.parse(context)) return false;
-
-      return true;
+        // HttpWriter::write(clientSocket, context, false);
+        return false;
+      }
     }
   };
 } 
