@@ -115,15 +115,17 @@ namespace Metro {
       while (keepAlive) {
         Context context;
 
-        if (!HttpParser::parse(clientSocket, context, config)) { 
-          HttpWriter::write(clientSocket, context, false);
-          break;
-        }
-
         try {
+          if (!HttpParser::parse(clientSocket, context, config)) { 
+            HttpWriter::write(clientSocket, context, false);
+            break;
+          }
+
           app.handle(context);
         } catch (const HttpError& e) {
-          context.res.status(e.status()).text(e.what());
+          context.res
+            .status(e.status())
+            .text(e.what());
         } catch (const std::exception& e) {
           context.res
             .status(Constants::Http_Status::INTERNAL_SERVER_ERROR)

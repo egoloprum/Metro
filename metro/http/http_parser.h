@@ -329,6 +329,8 @@ namespace Metro {
     bool readInitialBody(Context& context) {
       auto contentLengthHeader =
         context.req.header(Constants::Http_Header::CONTENT_LENGTH);
+      auto contentTypeHeader =
+        context.req.header(Constants::Http_Header::CONTENT_TYPE);
 
       if (!contentLengthHeader) {
         rawBody.clear();
@@ -341,6 +343,13 @@ namespace Metro {
         }
 
         return true;
+      }
+
+      if (!contentTypeHeader) {
+        throw HttpError(
+          Constants::Http_Status::UNSUPPORTED_MEDIA_TYPE,
+          Helpers::reasonPhrase(Constants::Http_Status::UNSUPPORTED_MEDIA_TYPE)
+        );
       }
 
       try {
@@ -493,40 +502,31 @@ namespace Metro {
       std::string buffer;
       size_t total_bytes_read = 0;
 
-      try {  
-        HttpLimits limits(config);
-  
-        HttpHeaderReader headerReader(
-          clientSocket,
-          buffer,
-          total_bytes_read,
-          limits
-        );
-        
-        if (!headerReader.read()) return false;
-  
-        std::istringstream input(buffer);
-  
-        HttpRequestLineParser requestLineParser(limits);
-        if (!requestLineParser.parse(input, context)) { return false; }
-  
-        HttpHeadersParser headersParser(limits);
-        if (!headersParser.parse(input, context)) { return false; }
-  
-        if (!shouldKeepAlive(context)) { return false; }
-  
-        HttpBodyParser bodyParser(clientSocket, buffer, limits);
-        if (!bodyParser.parse(context)) { return false; }
- 
-        return true;
-      } catch (const HttpError& e) {
-        context.res
-          .status(e.status())
-          .text(e.what());
+      HttpLimits limits(config);
 
-        // HttpWriter::write(clientSocket, context, false);
-        return false;
-      }
+      HttpHeaderReader headerReader(
+        clientSocket,
+        buffer,
+        total_bytes_read,
+        limits
+      );
+      
+      if (!headerReader.read()) return false;
+
+      std::istringstream input(buffer);
+
+      HttpRequestLineParser requestLineParser(limits);
+      if (!requestLineParser.parse(input, context)) { return false; }
+
+      HttpHeadersParser headersParser(limits);
+      if (!headersParser.parse(input, context)) { return false; }
+
+      if (!shouldKeepAlive(context)) { return false; }
+
+      HttpBodyParser bodyParser(clientSocket, buffer, limits);
+      if (!bodyParser.parse(context)) { return false; }
+
+      return true;
     }
   };
 } 
