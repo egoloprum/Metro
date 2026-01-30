@@ -30,23 +30,31 @@ namespace Metro {
     >;
 
     struct CaseInsensitiveHash {
-        size_t operator()(const std::string& key) const noexcept {
-            size_t h = 0;
-            for (char c : key)
-                h = h * 131 + std::tolower(c);
-            return h;
+      size_t operator()(const std::string& key) const noexcept {
+        size_t h = 0;
+        for (unsigned char uc : key) {  
+          if (uc >= 'A' && uc <= 'Z') { uc |= 0x20; }
+          h = h * 131 + uc;
         }
+        return h;
+      }
     };
-    
+
     struct CaseInsensitiveEqual {
-        bool operator()(const std::string& a,
-                        const std::string& b) const noexcept {
-            if (a.size() != b.size()) return false;
-            for (size_t i = 0; i < a.size(); ++i)
-                if (std::tolower(a[i]) != std::tolower(b[i]))
-                    return false;
-            return true;
+      bool operator()(const std::string& a, const std::string& b) const noexcept {
+        if (a.size() != b.size()) return false;
+        
+        for (size_t i = 0; i < a.size(); ++i) {
+          unsigned char ca = static_cast<unsigned char>(a[i]);
+          unsigned char cb = static_cast<unsigned char>(b[i]);
+          
+          if (ca >= 'A' && ca <= 'Z') ca |= 0x20;
+          if (cb >= 'A' && cb <= 'Z') cb |= 0x20;
+          
+          if (ca != cb) return false;
         }
+        return true;  
+      }
     };
     
     using Header = std::unordered_map<std::string, std::string, CaseInsensitiveHash, CaseInsensitiveEqual>;
