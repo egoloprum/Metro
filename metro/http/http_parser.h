@@ -379,27 +379,41 @@ namespace Metro {
     }
 
     bool readRemainingBody(Context& context) {
-      auto contentLengthHeader =
-        context.req.header(Constants::Http_Header::CONTENT_LENGTH);
+      auto contentLengthHeader = context.req.header(Constants::Http_Header::CONTENT_LENGTH);
       if (!contentLengthHeader) return true;
 
       try {
         size_t content_length = std::stoul(*contentLengthHeader);
+        
+        if (content_length > limits.max_body_size) {
+          throw HttpError(
+            Constants::Http_Status::PAYLOAD_TOO_LARGE,
+            Helpers::reasonPhrase(Constants::Http_Status::PAYLOAD_TOO_LARGE)
+          );
+        }
+
+        if (content_length > rawBody.capacity()) {
+          rawBody.reserve(content_length);
+        }
+
         std::vector<char> chunk(limits.max_buffer_size);
-  
+      
         while (rawBody.size() < content_length) {
-          ssize_t bytes_read = recv(clientSocket, chunk.data(), chunk.size(), 0);
-  
+          size_t remaining = content_length - rawBody.size();
+          size_t read_size = std::min(static_cast<size_t>(limits.max_buffer_size), remaining);
+          
+          // MSG_WAITALL typically only works on sockets in blocking mode. If the socket is non-blocking, the flag may be ignored or the call may fail.
+          ssize_t bytes_read = recv(clientSocket, chunk.data(), read_size, MSG_WAITALL);
           if (bytes_read <= 0) break;
-  
-          rawBody.append(chunk.data(), bytes_read);
-  
-          if (rawBody.size() > limits.max_body_size) {
+        
+          if (rawBody.size() + static_cast<size_t>(bytes_read) > limits.max_body_size) {
             throw HttpError(
-              Constants::Http_Status::PAYLOAD_TOO_LARGE, 
+              Constants::Http_Status::PAYLOAD_TOO_LARGE,
               Helpers::reasonPhrase(Constants::Http_Status::PAYLOAD_TOO_LARGE)
             );
           }
+
+          rawBody.append(chunk.data(), static_cast<size_t>(bytes_read));
         }
 
         return true;
