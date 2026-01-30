@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include <sstream>
+#include <algorithm>
 
 #include "context.h"
 #include "types.h"
@@ -24,14 +25,13 @@ namespace Metro {
     };
 
     struct RouteNode {
-      RouteNode* paramChild = nullptr;
-      std::string paramName;
+      std::unordered_map<std::string, RouteNode*> paramChildren;
       std::unordered_map<std::string, Endpoint> endpoints;
       std::unordered_map<std::string, RouteNode*> children;
 
       ~RouteNode() { 
         for (auto& p : children) delete p.second; 
-        delete paramChild; 
+        for (auto& p : paramChildren) delete p.second;
       }
     };
     
@@ -42,7 +42,7 @@ namespace Metro {
       App& app;
       std::string path;
       
-    public:
+      public:
       RouteBuilder(App& app, std::string path) : app(app), path(std::move(path)) {}
       
       RouteBuilder(const RouteBuilder&) = delete;
@@ -115,12 +115,12 @@ namespace Metro {
         if (segment.empty()) continue;
 
         if (segment[0] == ':') {
-          if (!node->paramChild) {
-            node->paramChild = new RouteNode();
-            node->paramChild->paramName = segment.substr(1);
+          std::string paramName = segment.substr(1);
+          if (node->paramChildren.find(paramName) == node->paramChildren.end()) {
+            node->paramChildren[paramName] = new RouteNode();
           }
-          paramNames.push_back(segment.substr(1));
-          node = node->paramChild;
+          paramNames.push_back(paramName);
+          node = node->paramChildren[paramName];
         } else {
           if (node->children.find(segment) == node->children.end()) {
             node->children[segment] = new RouteNode();
@@ -148,6 +148,10 @@ namespace Metro {
           return MatchResult::Found;
         }
         
+        if (node->endpoints.empty()) {
+          return MatchResult::NotFound;
+        }
+        
         if (allowedMethods) {
           allowedMethods->clear();
           for (const auto& [method, _] : node->endpoints) {
@@ -165,14 +169,33 @@ namespace Metro {
         if (result != MatchResult::NotFound) return result;
       }
 
-      if (node->paramChild) {
-        context.req._params[node->paramChild->paramName] = Helpers::PathSanitizer::decodeSegment(seg);
-        auto result = resolveRoute(node->paramChild, segments, index + 1, context, outEndpoint, allowedMethods);
-        if (result != MatchResult::NotFound) return result;
-        context.req._params.erase(node->paramChild->paramName);
+      MatchResult bestResult = MatchResult::NotFound;
+      std::vector<std::string> allAllowedMethods;
+
+      for (auto& [paramName, childNode] : node->paramChildren) {
+        context.req._params[paramName] = Helpers::PathSanitizer::decodeSegment(seg);
+        std::vector<std::string> branchAllowed;
+        auto result = resolveRoute(childNode, segments, index + 1, context, outEndpoint, &branchAllowed);
+        
+        if (result == MatchResult::Found) {
+          return MatchResult::Found;
+        } else if (result == MatchResult::MethodNotAllowed) {
+          bestResult = MatchResult::MethodNotAllowed;
+          allAllowedMethods.insert(allAllowedMethods.end(), 
+                                   branchAllowed.begin(), 
+                                   branchAllowed.end());
+        }
+        context.req._params.erase(paramName);
       }
 
-      return MatchResult::NotFound;
+      if (bestResult == MatchResult::MethodNotAllowed && allowedMethods) {
+        std::sort(allAllowedMethods.begin(), allAllowedMethods.end());
+        auto last = std::unique(allAllowedMethods.begin(), allAllowedMethods.end());
+        allAllowedMethods.erase(last, allAllowedMethods.end());
+        *allowedMethods = allAllowedMethods;
+      }
+
+      return bestResult;
     }
 
     void executeRoute(Context& context) {
@@ -233,7 +256,7 @@ namespace Metro {
       next();
     }
 
-  public:
+    public:
     App() = default;
     App(const App&) = delete;
     App& operator=(const App&) = delete;
