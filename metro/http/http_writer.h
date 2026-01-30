@@ -17,6 +17,12 @@ namespace Metro {
     public:
 
     static void write(int clientSocket, const Context& context, bool keepAlive) {
+      // Check if body is Stream first (special handling)
+      if (std::holds_alternative<Types::Stream>(context.res._body)) {
+        writeStream(clientSocket, context, keepAlive);
+        return;
+      }
+
       auto bodyView = buildBodyView(context.res._body);
       std::string headers = buildHeaders(context, bodyView.size, keepAlive);
 
@@ -28,6 +34,45 @@ namespace Metro {
     }
   
     private:
+
+    static std::string toHex(size_t value) {
+      static const char* digits = "0123456789abcdef";
+      std::string result;
+      do {
+        result = digits[value & 0xf] + result;
+        value >>= 4;
+      } while (value);
+      return result;
+    }
+
+    static void writeStream(int clientSocket, const Context& context, bool keepAlive) {
+      const auto& stream = std::get<Types::Stream>(context.res._body);
+      
+      // Build headers (Stream sets Transfer-Encoding or Content-Length)
+      std::string headers = buildHeaders(context, stream.contentLength, keepAlive);
+      sendAllResponse(clientSocket, headers.data(), headers.size());
+      
+      bool use_chunked = (stream.contentLength == 0);
+      
+      // Execute stream writer with chunk callback
+      stream.writer([&](const char* data, size_t len) -> bool {
+        if (use_chunked) {
+          // Chunked encoding: hex(size)\r\n data \r\n
+          std::string chunkHeader = toHex(len) + "\r\n";
+          if (!sendAll(clientSocket, chunkHeader.data(), chunkHeader.size())) return false;
+          if (!sendAll(clientSocket, data, len)) return false;
+          return sendAll(clientSocket, "\r\n", 2);
+        } else {
+          // Fixed length streaming
+          return sendAll(clientSocket, data, len);
+        }
+      });
+      
+      // Send final chunk if chunked
+      if (use_chunked) {
+        sendAllResponse(clientSocket, "0\r\n\r\n", 5);
+      }
+    }
 
     struct BodyView {
       const char* data;
@@ -183,6 +228,17 @@ namespace Metro {
         data += sent;
         length -= sent;
       }
+    }
+
+    // Helper for single write attempt (returns success bool)
+    static bool sendAll(int clientSocket, const char* data, size_t length) {
+      while (length > 0) {
+        ssize_t sent = ::send(clientSocket, data, length, MSG_NOSIGNAL);
+        if (sent <= 0) return false;
+        data += sent;
+        length -= sent;
+      }
+      return true;
     }
   };
 }

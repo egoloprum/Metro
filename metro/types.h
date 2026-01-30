@@ -1,7 +1,8 @@
 #pragma once
 
 #include <functional>
-#include <variant> 
+#include <variant>
+#include <memory>
 
 #include "context.h"
 #include "../lib/json.hpp"
@@ -21,12 +22,30 @@ namespace Metro {
     using Json        = nlohmann::json;
     using Binary      = std::vector<std::uint8_t>;
 
-    using Body        = std::variant<
+    struct Stream {
+      using ChunkWriter = std::function<bool(const char* data, size_t len)>;
+      using Writer = std::function<bool(ChunkWriter write)>;
+      
+      Writer writer;
+      size_t contentLength = 0;  // 0 = unknown/chunked encoding
+      
+      Stream(Writer w, size_t len = 0) 
+        : writer(std::move(w)), contentLength(len) {}
+        
+      // Helper for file streaming with sendfile optimization hint
+      static Stream fromFile(const std::string& path);
+      
+      // Helper for Server-Sent Events
+      static Stream sse(std::function<void(std::function<void(const std::string&)> emit)> handler);
+    };
+
+    using Body = std::variant<
       std::monostate,                   // not parsed / empty
       Text,                             // text/plain, text/html, etc
       Form,                             // application/x-www-form-urlencoded
       Json,                             // application/json
-      Binary                            // images, pdf, octet-stream
+      Binary,                           // images, pdf, octet-stream
+      Stream                            // callback-based streaming
     >;
 
     struct CaseInsensitiveHash {

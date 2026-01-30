@@ -3,6 +3,8 @@
 #include <string>
 #include <unordered_map>
 #include <optional>
+#include <fstream>
+#include <ios>
 
 #include "types.h"
 #include "constants.h"
@@ -107,6 +109,31 @@ namespace Metro {
         _headers["Content-Type"] = "application/json";
         _body = data;
         return *this;
+      }
+
+      Response& stream(Stream::Writer writer, size_t contentLength = 0, const std::string& contentType = "") {
+        if (!contentType.empty()) {
+          _headers["Content-Type"] = contentType;
+        }
+        if (contentLength > 0) {
+          _headers["Content-Length"] = std::to_string(contentLength);
+        } else {
+          _headers["Transfer-Encoding"] = "chunked";
+        }
+        _body = Stream(std::move(writer), contentLength);
+        return *this;
+      }
+
+      Response& file(const std::string& path, const std::string& contentType = "application/octet-stream") {
+        // Implementation could optimize with sendfile syscall
+        return stream([path](Stream::ChunkWriter write) {
+          std::ifstream file(path, std::ios::binary);
+          char buffer[8192];
+          while (file.read(buffer, sizeof(buffer)) || file.gcount() > 0) {
+            if (!write(buffer, file.gcount())) return false;
+          }
+          return true;
+        }, 0, contentType); 
       }
   };
   
