@@ -25,6 +25,9 @@ namespace Metro {
       for (auto& route : this->routes) {
         std::smatch match;
 
+        // TODO: Using std::regex for every route match is computationally expensive
+        // Replace std::regex with radix tree for routing
+
         if (!std::regex_match(context.req._path, match, route.pathRegex)) {
           continue;
         }
@@ -61,19 +64,22 @@ namespace Metro {
 
     void negotiateResponse(Context& context) {
       auto accept = context.req.header(Constants::Http_Header::ACCEPT);
-      if (!accept) return;
+      if (!accept || accept->empty()) return;
 
-      const auto& ct = context.res._headers[Constants::Http_Header::CONTENT_TYPE];
+      auto it = context.res._headers.find(Constants::Http_Header::CONTENT_TYPE);
+      if (it == context.res._headers.end()) return;
+
+      const std::string& contentType = it->second;
 
       if (accept->find("*/*") != std::string::npos) return;
-      if (accept->find(ct) != std::string::npos) return;
+      if (accept->find(contentType) != std::string::npos) return;
 
       throw HttpError(
         Constants::Http_Status::NOT_ACCEPTABLE,
         Helpers::reasonPhrase(Constants::Http_Status::NOT_ACCEPTABLE)
       );
     }
-  
+
     public:
 
     App() = default;
@@ -135,9 +141,9 @@ namespace Metro {
         }
       };
 
-      next();
-
       negotiateResponse(context);
+
+      next();
     }
   };
 }

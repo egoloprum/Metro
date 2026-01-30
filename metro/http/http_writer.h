@@ -14,7 +14,7 @@ namespace Metro {
 
     static void write(int clientSocket, const Context& context, bool keepAlive) {
       std::string response = buildResponse(context, keepAlive);
-      send(clientSocket, response.data(), response.size(), 0);
+      sendResponse(clientSocket, response);
     }
   
     private:
@@ -46,14 +46,14 @@ namespace Metro {
 
     static std::string buildResponse(const Context& context, bool keepAlive) {
       std::ostringstream output;
+      std::string body_str = bodyToString(context.res._body);
         
       writeStatusLine(output, context);
       writeHeaders(output, context);
-      writeFixedHeaders(output, context, keepAlive);
+      writeFixedHeaders(output, context, body_str.size(), keepAlive);
         
       output << "\r\n";
 
-      std::string body_str = bodyToString(context.res._body);
       if (!body_str.empty()) { 
         output << body_str; 
       }
@@ -76,13 +76,13 @@ namespace Metro {
       }
     }
   
-    static void writeFixedHeaders(std::ostream& output, const Context& context, bool keepAlive) {
+    static void writeFixedHeaders(std::ostream& output, const Context& context, size_t body_str_size, bool keepAlive) {
       auto it = context.res._headers.find(std::string(Constants::Http_Header::TRANSFER_ENCODING));
       bool is_chunked = (it != context.res._headers.end() && it->second.find("chunked") != std::string::npos);
 
       if (!is_chunked) {
         output  << Constants::Http_Header::CONTENT_LENGTH << ": " 
-                << bodyToString(context.res._body).size()
+                << body_str_size
                 << "\r\n";
       }
       
@@ -94,6 +94,20 @@ namespace Metro {
       output  << Constants::Http_Header::DATE << ": "
               << Helpers::getCurrentDate()
               << "\r\n";
+    }
+
+    static void sendResponse(int clientSocket, std::string response) {
+      const char* responseData = response.data();
+      size_t remainingData = response.size();
+
+      while (remainingData > 0) {
+        ssize_t sentData = ::send(clientSocket, responseData, remainingData, 0);
+        if (sentData <= 0) {
+            return; 
+        }
+        responseData += sentData;
+        remainingData -= sentData;
+      }
     }
   };
 }

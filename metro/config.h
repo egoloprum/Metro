@@ -1,5 +1,7 @@
 #pragma once
 
+// TODO: Implement proper configuration system
+
 namespace Metro {
   class Config {
     public: 

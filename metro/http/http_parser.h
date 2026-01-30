@@ -16,6 +16,10 @@
 #include "types.h"
 #include "http_error.h"
 
+// TODO: Buffer Overflows: Reading into fixed-size std::vector<char> without bounds checking on recv return values.
+
+// TODO: Timing Attacks: No constant-time string comparison for sensitive headers/parameters. (use xor comparison)
+
 namespace Metro {
   using namespace Types;
 
@@ -34,6 +38,8 @@ namespace Metro {
     const size_t max_header_size;
     const size_t max_buffer_size;
   };
+
+  // TODO: Header Injection: No validation of header values for CR/LF injection.
 
   class HttpHeaderReader {
     public:
@@ -145,10 +151,7 @@ namespace Metro {
       return parseQueryString(rawPath.substr(query + 1), context);
     }
 
-    bool parseQueryString(
-      const std::string& queryString,
-      Context& context
-    ) {
+    bool parseQueryString(const std::string& queryString, Context& context) {
       if (countQueryParams(queryString) > limits.max_query_params) {
         throw HttpError(
           Constants::Http_Status::URI_TOO_LONG, 
@@ -159,6 +162,8 @@ namespace Metro {
       Helpers::parseQuery(queryString, context.req._query);
       return true;
     }
+
+    // TODO: Path Traversal: The sanitizePath function attempts prevention but might have edge cases with Unicode or multiple encodings.
 
     std::string sanitizePath(const std::string& path) {
       std::string sanitized = path;
@@ -203,6 +208,8 @@ namespace Metro {
       return std::count(queryString.begin(), queryString.end(), '&') + 1;
     }
   };
+
+  // TODO: Header parsing is O(n) with linear scans
 
   class HttpHeadersParser {
     public:
@@ -334,14 +341,6 @@ namespace Metro {
 
       if (!contentLengthHeader) {
         rawBody.clear();
-
-        if (buffer.find("\r\n\r\n") + 4 < buffer.size()) {
-          throw HttpError(
-            Constants::Http_Status::UNSUPPORTED_MEDIA_TYPE,
-            "Missing Content-Type"
-          );
-        }
-
         return true;
       }
 

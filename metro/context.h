@@ -6,25 +6,11 @@
 
 #include "types.h"
 #include "constants.h"
-#include "http/http_error.h"
 
 namespace Metro {
   using namespace Types;
 
   struct Request {
-    private:
-
-    template <typename T>
-    T& expectBody(const char* expectedType) {
-      if (!std::holds_alternative<T>(_body)) {
-        throw HttpError(
-          Constants::Http_Status::UNSUPPORTED_MEDIA_TYPE,
-          std::string("Invalid body type, expected ") + expectedType
-        );
-      }
-      return std::get<T>(_body);
-    }
-
     public:
 
     std::string _method;
@@ -68,38 +54,24 @@ namespace Metro {
 
     // Body& body() { return _body; }
 
-    Text& text() {
-      return expectBody<Text>("text");
-    }
-
-    Json& json() {
-      return expectBody<Json>("json");
-    }
-
-    Form& form() {
-      return expectBody<Form>("form");
-    }
-
-    Binary& binary() {
-      return expectBody<Binary>("binary");
-    }
-
     const Text& text() const {
-      return const_cast<Request*>(this)->text();
+      return std::get<Text>(_body);
     }
 
     const Json& json() const {
-      return const_cast<Request*>(this)->json();
+      return std::get<Json>(_body);
     }
 
     const Form& form() const {
-      return const_cast<Request*>(this)->form();
+      return std::get<Form>(_body);
     }
 
     const Binary& binary() const {
-      return const_cast<Request*>(this)->binary();
+      return std::get<Binary>(_body);
     }
   };
+
+  // TODO: Implement response caching
   
   struct Response {
       int     _status = 200;

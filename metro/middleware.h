@@ -10,6 +10,8 @@
 #include "context.h"
 #include "types.h"
 
+// TODO: Add middleware for common tasks (CORS, compression, etc.)
+
 namespace Metro {
   namespace Middlewares {
       using namespace Types;
