@@ -91,6 +91,7 @@ namespace Metro {
         constexpr const char* ACCEPT_CHARSET          = "accept-charset";
         constexpr const char* ACCEPT_ENCODING         = "accept-encoding";
         constexpr const char* ACCEPT_LANGUAGE         = "accept-language";
+        constexpr const char* ALLOW                   = "allow";
         constexpr const char* AUTHORIZATION           = "authorization";
         constexpr const char* CACHE_CONTROL           = "cache-control";
         constexpr const char* CONTENT_DISPOSITION     = "content-disposition";

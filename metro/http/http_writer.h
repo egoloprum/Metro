@@ -19,6 +19,18 @@ namespace Metro {
   
     private:
 
+    static std::string getCurrentDate() {
+      auto now = std::chrono::system_clock::now();
+      std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+      
+      std::tm gmt_time;
+      gmtime_r(&now_time, &gmt_time);
+      
+      std::stringstream date_string_stream;
+      date_string_stream << std::put_time(&gmt_time, "%a, %d %b %Y %H:%M:%S GMT");
+      return date_string_stream.str();
+    }
+
     static std::string bodyToString(const Types::Body& body) {
       return std::visit([](const auto& content) -> std::string {
         using T = std::decay_t<decltype(content)>;
@@ -31,7 +43,7 @@ namespace Metro {
           std::string result;
           for (const auto& [key, value] : content) {
             if (!result.empty()) result += '&';
-            result += Helpers::urlEncode(key) + '=' + Helpers::urlEncode(value);
+            result += Helpers::PathSanitizer::encodeSegment(key) + '=' + Helpers::PathSanitizer::encodeSegment(value);
           }
           return result;
         } else if constexpr (std::is_same_v<T, Types::Json>) {
@@ -92,7 +104,7 @@ namespace Metro {
               << "\r\n";
       
       output  << Constants::Http_Header::DATE << ": "
-              << Helpers::getCurrentDate()
+              << getCurrentDate()
               << "\r\n";
     }
 

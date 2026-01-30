@@ -39,6 +39,45 @@ namespace Metro {
     const size_t max_buffer_size;
   };
 
+  class FormDataParser {
+    public:
+    static void parseMulti(const std::string& input, 
+                          std::unordered_map<std::string, std::vector<std::string>>& out) {
+      std::istringstream ss(input);
+      std::string pair;
+
+      while (std::getline(ss, pair, '&')) {
+        if (pair.empty()) continue;
+
+        auto eq = pair.find('=');
+        std::string key = Helpers::PathSanitizer::decodeSegment(pair.substr(0, eq));
+        std::string val = (eq == std::string::npos) ? "" 
+                        : Helpers::PathSanitizer::decodeSegment(pair.substr(eq + 1));
+
+        out[key].push_back(val);
+      }
+    }
+
+    static void parseSingle(const std::string& input, 
+                            std::unordered_map<std::string, std::string>& out) {
+      std::istringstream ss(input);
+      std::string pair;
+
+      while (std::getline(ss, pair, '&')) {
+        if (pair.empty()) continue;
+
+        auto eq = pair.find('=');
+        std::string key = Helpers::PathSanitizer::decodeSegment(pair.substr(0, eq));
+        std::string val = (eq == std::string::npos) ? "" 
+                        : Helpers::PathSanitizer::decodeSegment(pair.substr(eq + 1));
+
+        if (out.find(key) == out.end()) {
+          out.emplace(key, val);
+        }
+      }
+    }
+  };
+
   // TODO: Header Injection: No validation of header values for CR/LF injection.
 
   class HttpHeaderReader {
@@ -95,12 +134,7 @@ namespace Metro {
           Helpers::reasonPhrase(Constants::Http_Status::REQUEST_HEADER_FIELDS_TOO_LARGE)
         );
       }
-      if (total_bytes_read > limits.max_body_size) {
-        throw HttpError(
-          Constants::Http_Status::PAYLOAD_TOO_LARGE, 
-          Helpers::reasonPhrase(Constants::Http_Status::PAYLOAD_TOO_LARGE)
-        );
-      };
+
       return true;
     }
   };
@@ -123,17 +157,20 @@ namespace Metro {
     bool readRequestLine(std::istream& input, Context& context) {
       std::string version;
       input >> context.req._method >> rawPath >> version;
-      if (rawPath.empty()) {
-        throw HttpError(
-          Constants::Http_Status::BAD_REQUEST, 
-          Helpers::reasonPhrase(Constants::Http_Status::BAD_REQUEST)
-        );
+
+      if (rawPath.empty() || version.empty()) {
+        throw HttpError(Constants::Http_Status::BAD_REQUEST, "Malformed request line");
       }
+
+      if (version.substr(0, 5) != "HTTP/") {
+        throw HttpError(Constants::Http_Status::BAD_REQUEST, "Invalid HTTP version");
+      }
+
       return true;
     }
 
     bool processPath(Context& context) {
-      rawPath = sanitizePath(rawPath);
+      rawPath = Helpers::PathSanitizer::normalize(rawPath);
       if (rawPath.empty()) {
         throw HttpError(
           Constants::Http_Status::BAD_REQUEST, 
@@ -159,48 +196,8 @@ namespace Metro {
         );
       }
 
-      Helpers::parseQuery(queryString, context.req._query);
+      FormDataParser::parseMulti(queryString, context.req._query);
       return true;
-    }
-
-    // TODO: Path Traversal: The sanitizePath function attempts prevention but might have edge cases with Unicode or multiple encodings.
-
-    std::string sanitizePath(const std::string& path) {
-      std::string sanitized = path;
-
-      // Remove null bytes
-      sanitized.erase(
-        std::remove(sanitized.begin(), sanitized.end(), '\0'),
-        sanitized.end()
-      );
-
-      // Decode URL encoding first
-      sanitized = Helpers::urlDecode(sanitized);
-      // Decode again and compare
-      std::string doubleDecoded = Helpers::urlDecode(sanitized);
-
-      if (doubleDecoded != sanitized && doubleDecoded.find("..") != std::string::npos) { return ""; }
-
-      // Check for path traversal attempts
-      if (sanitized.find("..") != std::string::npos) { return ""; }
-      while (sanitized.find("/../") != std::string::npos) { return ""; }
-
-      size_t pos;
-      while ((pos = sanitized.find("/./")) != std::string::npos) {
-        sanitized.erase(pos, 2);
-      }
-
-      // Remove trailing slash except for root
-      if (sanitized.size() > 1 && sanitized.back() == '/') {
-        sanitized.pop_back();
-      }
-
-      // Ensure path starts with /
-      if (sanitized.empty() || sanitized[0] != '/') {
-        sanitized = "/" + sanitized;
-      }
-
-      return sanitized;
     }
 
     size_t countQueryParams(const std::string& queryString) {
@@ -459,11 +456,7 @@ namespace Metro {
 
       if (contentType->find(Constants::Http_Content_Type::APPLICATION_FORM_URLENCODED) != std::string::npos) {
         Form form;
-        std::unordered_map<std::string, std::vector<std::string>> temp;
-        Helpers::parseQuery(rawBody, temp);
-        for (auto& [key, value] : temp) {
-          if (!value.empty()) form[key] = value[0];
-        }
+        FormDataParser::parseSingle(rawBody, form);
         return form;
       }
 

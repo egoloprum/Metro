@@ -3,6 +3,10 @@
 #include <chrono>
 #include <sstream>
 #include <iomanip>
+#include <string>
+#include <vector>
+#include <cctype>
+#include <algorithm>
 
 #include "constants.h"
 
@@ -85,85 +89,120 @@ namespace Metro {
         default: return "Unknown";
       }
     }
-  
-    std::string getCurrentDate() {
-      auto now = std::chrono::system_clock::now();
-      std::time_t now_time = std::chrono::system_clock::to_time_t(now);
-      
-      std::tm gmt_time;
-      gmtime_r(&now_time, &gmt_time);
-      
-      std::stringstream date_string_stream;
-      date_string_stream << std::put_time(&gmt_time, "%a, %d %b %Y %H:%M:%S GMT");
-      return date_string_stream.str();
-    }
 
-    inline std::string urlEncode(const std::string& input) {
-      std::ostringstream encoded;
+    class PathSanitizer {
+      public:
+
+      static std::string normalize(const std::string& path) {
+        // Step 1: Split into segments and decode each segment individually
+        std::vector<std::string> segments;
+        std::string current;
         
-      for (unsigned char ch : input) {
-        if (std::isalnum(ch) || 
-          ch == '-' || 
-          ch == '_' || 
-          ch == '.' || 
-          ch == '~') {
-          encoded << ch;
-        } else if (ch == ' ') {
-          encoded << '+';
-        } else {
-          encoded << '%' 
-                  << std::hex << std::uppercase 
-                  << static_cast<int>(ch);
+        for (size_t i = 0; i < path.size(); ++i) {
+          char c = path[i];
+          
+          if (c == '/') {
+            if (!current.empty()) {
+              segments.push_back(decodeSegment(current));
+              current.clear();
+            }
+            continue;
+          } else {
+            current += c;
+          }
         }
-      }
+        if (!current.empty()) {
+          segments.push_back(decodeSegment(current));
+        }
+
+        // Step 2: Resolve path traversal using stack
+        std::vector<std::string> resolved;
+        for (const auto& seg : segments) {
+          if (seg == "." || seg.empty()) {
+            continue; 
+          } else if (seg == "..") {
+            if (!resolved.empty()) {
+              resolved.pop_back();  
+            }
+          } else {
+            resolved.push_back(seg);
+          }
+        }
+
+        // Step 3: Reconstruct path
+        std::string result = "/";
+        for (size_t i = 0; i < resolved.size(); ++i) {
+          if (i > 0) result += "/";
+          result += resolved[i];
+        }
         
-      return encoded.str();
-    }
-  
-    inline std::string urlDecode(const std::string& encoded) {
-      std::string decoded;
-      decoded.reserve(encoded.size());
+        return result;
+      }
 
-      for (size_t i = 0; i < encoded.size(); ++i) {
-        if (encoded[i] == '+') {
-          decoded += ' ';
-        } else if (encoded[i] == '%' && i + 2 < encoded.size()) {
-          char hex1 = encoded[i + 1];
-          char hex2 = encoded[i + 2];
+      static std::string encodeSegment(const std::string& input, bool formData = false) {
+        std::string encoded;
+        encoded.reserve(input.size() * 3);
+        
+        for (unsigned char ch : input) {
+          if (std::isalnum(ch) || ch == '-' || ch == '_' || ch == '.' || ch == '~') {
+            encoded += ch;
+          } 
+          else if (ch == ' ' && formData) {
+            encoded += '+';
+          } 
+          else {
+            const char* hexDigits = "0123456789ABCDEF";
+            encoded += '%';
+            encoded += hexDigits[ch >> 4];      
+            encoded += hexDigits[ch & 0x0F];    
+          }
+        }
+        
+        return encoded;
+      }
 
-          if (std::isxdigit(hex1) && std::isxdigit(hex2)) {
-            int hex_val = std::stoi(encoded.substr(i + 1, 2), nullptr, 16);
-            decoded += static_cast<char>(hex_val);
-            i += 2;
+      static std::string decodeSegment(const std::string& encoded) {
+        std::string decoded;
+        decoded.reserve(encoded.size());
+        
+        for (size_t i = 0; i < encoded.size(); ++i) {
+          if (encoded[i] == '%' && i + 2 < encoded.size()) {
+            char hi = encoded[i + 1];
+            char lo = encoded[i + 2];
+            
+            if (std::isxdigit(hi) && std::isxdigit(lo)) {
+              unsigned char val = (hexValue(hi) << 4) | hexValue(lo);
+              
+              // Security: Reject null bytes and path separators
+              if (val == '\0' || val == '/' || val == '\\') {
+                return "";  // Invalid segment
+              }
+              
+              decoded += static_cast<char>(val);
+              i += 2;
+            } else {
+              // Invalid encoding, keep literal %
+              decoded += '%';
+            }
+          } else if (encoded[i] == '\0' || encoded[i] == '/' || encoded[i] == '\\') {
+            // Reject embedded nulls or separators
+            return "";
           } else {
             decoded += encoded[i];
           }
-        } else {
-          decoded += encoded[i];
         }
+        return decoded;
       }
 
-      return decoded;
-    }
-
-    inline void parseQuery(
-      const std::string& queryString,
-      std::unordered_map<std::string, std::vector<std::string>>& out
-    ) {
-      std::istringstream ss(queryString);
-      std::string pair;
-
-      while (std::getline(ss, pair, '&')) {
-        if (pair.empty()) continue;
-
-        auto eq = pair.find('=');
-
-        std::string key = urlDecode(pair.substr(0, eq));
-        std::string val = (eq == std::string::npos) ? "" : urlDecode(pair.substr(eq + 1));
-
-        out[key].push_back(val);
+      private:
+      
+      static unsigned char hexValue(char c) {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        return 0;
       }
-    }
+    };
   }
 }  
 
