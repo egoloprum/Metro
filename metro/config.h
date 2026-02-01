@@ -25,6 +25,7 @@ namespace Metro {
       bool enable_keep_alive            = true;
       bool enable_path_sanitization     = true;
       bool reject_double_encoded_paths  = true;
+      bool validate_UTF_8               = true;
     };
 
     // Static configuration loading

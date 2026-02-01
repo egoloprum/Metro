@@ -30,13 +30,15 @@ namespace Metro {
       max_headers_count(config.security().max_headers_count),
       max_query_params(config.security().max_query_params),
       max_header_size(config.server().max_header_size),
-      max_buffer_size(config.server().max_buffer_size) {}
+      max_buffer_size(config.server().max_buffer_size),
+      validate_UTF_8(config.security().validate_UTF_8) {}
 
     const size_t max_body_size;
     const size_t max_headers_count;
     const size_t max_query_params;
     const size_t max_header_size;
     const size_t max_buffer_size;
+    const bool validate_UTF_8;
   };
 
   class FormDataParser {
@@ -172,7 +174,7 @@ namespace Metro {
     }
 
     bool processPath(Context& context) {
-      rawPath = Helpers::PathSanitizer::normalize(rawPath);
+      rawPath = Helpers::PathSanitizer::normalize(rawPath, limits.validate_UTF_8);
       if (rawPath.empty()) {
         throw HttpError(
           Constants::Http_Status::BAD_REQUEST, 

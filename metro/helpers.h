@@ -92,8 +92,20 @@ namespace Metro {
 
     class PathSanitizer {
       public:
+      /**
+       * Normalizes a URL path for safe filesystem access.
+       * 
+       * SECURITY NOTES:
+       * - This function treats paths as byte sequences (raw octets)
+       * - It does NOT validate UTF-8 or perform Unicode normalization
+       * - Safe for Linux ext4/XFS (byte-oriented filesystems)
+       * - CAUTION: macOS (APFS/HFS+) and Windows perform Unicode normalization.
+       *   On these platforms, different byte sequences may resolve to the same 
+       *   filename (NFD vs NFC). Use strict mode or additional validation.
+       * - Rejects overlong UTF-8 encodings of '.' and '/' via byte-value checking
+      */
 
-      static std::string normalize(const std::string& path) {
+      static std::string normalize(const std::string& path, bool strictUtf8 = false) {
         // Step 1: Split into segments and decode each segment individually
         std::vector<std::string> segments;
         std::string current;
@@ -103,7 +115,11 @@ namespace Metro {
           
           if (c == '/') {
             if (!current.empty()) {
-              segments.push_back(decodeSegment(current));
+              std::string decoded = decodeSegment(current);
+              if (strictUtf8 && !isValidUtf8(decoded)) {
+                return ""; // Invalid UTF-8 in strict mode
+              }
+              segments.push_back(decoded);
               current.clear();
             }
             continue;
@@ -112,7 +128,11 @@ namespace Metro {
           }
         }
         if (!current.empty()) {
-          segments.push_back(decodeSegment(current));
+          std::string decoded = decodeSegment(current);
+          if (strictUtf8 && !isValidUtf8(decoded)) {
+            return ""; // Invalid UTF-8 in strict mode
+          }
+          segments.push_back(decoded);
         }
 
         // Step 2: Resolve path traversal using stack
@@ -201,6 +221,63 @@ namespace Metro {
         if (c >= 'A' && c <= 'F') return c - 'A' + 10;
         if (c >= 'a' && c <= 'f') return c - 'a' + 10;
         return 0;
+      }
+
+      static bool isValidUtf8(const std::string& str) {
+        size_t i = 0;
+        while (i < str.size()) {
+          unsigned char c = str[i];
+          
+          // ASCII (0xxxxxxx)
+          if ((c & 0x80) == 0) {
+            ++i;
+            continue;
+          }
+          
+          // Check for overlong encodings and invalid sequences
+          size_t bytes;
+          unsigned char mask;
+          
+          if ((c & 0xE0) == 0xC0) {      // 110xxxxx - 2 bytes
+            bytes = 2;
+            mask = 0x1F;
+            // Overlong check: C0 and C1 are invalid (would encode ASCII < 0x80)
+            if (c == 0xC0 || c == 0xC1) return false;
+          } else if ((c & 0xF0) == 0xE0) { // 1110xxxx - 3 bytes
+            bytes = 3;
+            mask = 0x0F;
+          } else if ((c & 0xF8) == 0xF0) { // 11110xxx - 4 bytes
+            bytes = 4;
+            mask = 0x07;
+            // Max valid Unicode is U+10FFFF (first byte <= 0xF4)
+            if (c > 0xF4) return false;
+          } else {
+            // Invalid start byte (10xxxxxx or 11111xxx)
+            return false;
+          }
+          
+          // Check we have enough continuation bytes
+          if (i + bytes > str.size()) return false;
+          
+          // Validate continuation bytes (10xxxxxx)
+          unsigned int codepoint = c & mask;
+          for (size_t j = 1; j < bytes; ++j) {
+            unsigned char next = str[i + j];
+            if ((next & 0xC0) != 0x80) return false; // Must be 10xxxxxx
+            codepoint = (codepoint << 6) | (next & 0x3F);
+          }
+          
+          // Check for overlong encodings (codepoint too small for byte length)
+          if (bytes == 2 && codepoint < 0x80) return false;
+          if (bytes == 3 && codepoint < 0x800) return false;
+          if (bytes == 4 && codepoint < 0x10000) return false;
+          
+          // Check for surrogates (U+D800-U+DFFF) - invalid in UTF-8
+          if (codepoint >= 0xD800 && codepoint <= 0xDFFF) return false;
+          
+          i += bytes;
+        }
+        return true;
       }
     };
   }
