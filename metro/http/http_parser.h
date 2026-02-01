@@ -470,10 +470,37 @@ namespace Metro {
           size_t remaining = content_length - rawBody.size();
           size_t read_size = std::min(static_cast<size_t>(limits.max_buffer_size), remaining);
           
-          // MSG_WAITALL typically only works on sockets in blocking mode. If the socket is non-blocking, the flag may be ignored or the call may fail.
-          ssize_t bytes_read = recv(clientSocket, chunk.data(), read_size, MSG_WAITALL);
-          if (bytes_read <= 0) break;
+          ssize_t bytes_read = recv(clientSocket, chunk.data(), read_size, 0);
+          
+          if (bytes_read < 0) {
+            if (errno == EINTR) {
+              continue;  // Interrupted by signal, retry immediately
+            }
+            
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+              // Timeout occurred (shouldn't happen with blocking sockets, but handle gracefully)
+              throw HttpError(
+                Constants::Http_Status::REQUEST_TIMEOUT,
+                "Request body read timeout"
+              );
+            }
+            
+            // Connection error (ECONNRESET, EPIPE, etc.)
+            throw HttpError(
+              Constants::Http_Status::BAD_REQUEST,
+              "Connection error while reading body"
+            );
+          }
+          
+          if (bytes_read == 0) {
+            // Premature EOF - client closed connection before sending all data
+            throw HttpError(
+              Constants::Http_Status::BAD_REQUEST,
+              "Connection closed prematurely"
+            );
+          }
         
+          // Validate exceeding limits
           if (rawBody.size() + static_cast<size_t>(bytes_read) > limits.max_body_size) {
             throw HttpError(
               Constants::Http_Status::PAYLOAD_TOO_LARGE,
@@ -485,6 +512,9 @@ namespace Metro {
         }
 
         return true;
+      }
+      catch (const HttpError&) {
+        throw; 
       }
       catch (const std::exception& e) {
         throw HttpError(
