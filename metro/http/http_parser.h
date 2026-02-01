@@ -390,13 +390,28 @@ namespace Metro {
       }
 
       try {
-        size_t content_length = std::stoul(*contentLengthHeader);
-        if (content_length > limits.max_body_size) {
+        // Use stoull (64-bit) to prevent overflow on 32-bit platforms
+        errno = 0;
+        unsigned long long content_length_ull = std::stoull(*contentLengthHeader);
+        
+        // Check for ERANGE (overflow/underflow)
+        if (errno == ERANGE || errno == EINVAL) {
+          throw HttpError(
+            Constants::Http_Status::BAD_REQUEST,
+            "Invalid Content-Length"
+          );
+        }
+        
+        // Check if value exceeds size_t max (32-bit safety) or max_body_size
+        if (content_length_ull > static_cast<unsigned long long>(limits.max_body_size) ||
+            content_length_ull > static_cast<unsigned long long>(std::numeric_limits<size_t>::max())) {
           throw HttpError(
             Constants::Http_Status::PAYLOAD_TOO_LARGE, 
             Helpers::reasonPhrase(Constants::Http_Status::PAYLOAD_TOO_LARGE)
           );
         }
+        
+        size_t content_length = static_cast<size_t>(content_length_ull);
 
         size_t header_end = buffer.find("\r\n\r\n") + 4;
         rawBody.assign(
@@ -409,12 +424,13 @@ namespace Metro {
       catch (const std::invalid_argument& e) {
         throw HttpError(
           Constants::Http_Status::BAD_REQUEST, 
-          Helpers::reasonPhrase(Constants::Http_Status::BAD_REQUEST)
+          e.what()
         );
-      } catch (const std::out_of_range& e) {
+      } 
+      catch (const std::out_of_range& e) {
         throw HttpError(
           Constants::Http_Status::PAYLOAD_TOO_LARGE, 
-          Helpers::reasonPhrase(Constants::Http_Status::PAYLOAD_TOO_LARGE)
+          e.what()
         );
       }
     }
@@ -424,14 +440,25 @@ namespace Metro {
       if (!contentLengthHeader) return true;
 
       try {
-        size_t content_length = std::stoul(*contentLengthHeader);
+        errno = 0;
+        unsigned long long content_length_ull = std::stoull(*contentLengthHeader);
         
-        if (content_length > limits.max_body_size) {
+        if (errno == ERANGE || errno == EINVAL) {
+          throw HttpError(
+            Constants::Http_Status::BAD_REQUEST,
+            "Invalid Content-Length"
+          );
+        }
+        
+        if (content_length_ull > static_cast<unsigned long long>(limits.max_body_size) ||
+            content_length_ull > static_cast<unsigned long long>(std::numeric_limits<size_t>::max())) {
           throw HttpError(
             Constants::Http_Status::PAYLOAD_TOO_LARGE,
             Helpers::reasonPhrase(Constants::Http_Status::PAYLOAD_TOO_LARGE)
           );
         }
+        
+        size_t content_length = static_cast<size_t>(content_length_ull);
 
         if (content_length > rawBody.capacity()) {
           rawBody.reserve(content_length);
@@ -462,7 +489,7 @@ namespace Metro {
       catch (const std::exception& e) {
         throw HttpError(
           Constants::Http_Status::BAD_REQUEST, 
-          Helpers::reasonPhrase(Constants::Http_Status::BAD_REQUEST)
+          e.what()
         );
       }
     }
