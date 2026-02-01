@@ -25,14 +25,9 @@ namespace Metro {
     };
 
     struct RouteNode {
-      std::unordered_map<std::string, RouteNode*> paramChildren;
+      std::unordered_map<std::string, std::unique_ptr<RouteNode>> paramChildren;
       std::unordered_map<std::string, Endpoint> endpoints;
-      std::unordered_map<std::string, RouteNode*> children;
-
-      ~RouteNode() { 
-        for (auto& p : children) delete p.second; 
-        for (auto& p : paramChildren) delete p.second;
-      }
+      std::unordered_map<std::string, std::unique_ptr<RouteNode>> children;
     };
     
     RouteNode rootNode;
@@ -117,15 +112,15 @@ namespace Metro {
         if (segment[0] == ':') {
           std::string paramName = segment.substr(1);
           if (node->paramChildren.find(paramName) == node->paramChildren.end()) {
-            node->paramChildren[paramName] = new RouteNode();
+            node->paramChildren[paramName] = std::make_unique<RouteNode>();
           }
           paramNames.push_back(paramName);
-          node = node->paramChildren[paramName];
+          node = node->paramChildren[paramName].get();
         } else {
           if (node->children.find(segment) == node->children.end()) {
-            node->children[segment] = new RouteNode();
+            node->children[segment] = std::make_unique<RouteNode>();
           }
-          node = node->children[segment];
+          node = node->children[segment].get();;
         }
       }
 
@@ -165,7 +160,7 @@ namespace Metro {
       
       auto childIt = node->children.find(seg);
       if (childIt != node->children.end()) {
-        auto result = resolveRoute(childIt->second, segments, index + 1, context, outEndpoint, allowedMethods);
+        auto result = resolveRoute(childIt->second.get(), segments, index + 1, context, outEndpoint, allowedMethods);
         if (result != MatchResult::NotFound) return result;
       }
 
@@ -175,7 +170,7 @@ namespace Metro {
       for (auto& [paramName, childNode] : node->paramChildren) {
         context.req.getParams()[paramName] = Helpers::PathSanitizer::decodeSegment(seg);
         std::vector<std::string> branchAllowed;
-        auto result = resolveRoute(childNode, segments, index + 1, context, outEndpoint, &branchAllowed);
+        auto result = resolveRoute(childNode.get(), segments, index + 1, context, outEndpoint, &branchAllowed);
         
         if (result == MatchResult::Found) {
           return MatchResult::Found;
