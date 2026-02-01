@@ -257,6 +257,22 @@ namespace Metro {
       std::string value = line.substr(pos + 1);
       trim(value);
 
+      // Header values MUST NOT contain CR (0x0D) or LF (0x0A)
+      if (value.find('\r') != std::string::npos || value.find('\n') != std::string::npos) {
+        throw HttpError(
+          Constants::Http_Status::BAD_REQUEST,
+          "Invalid header value: contains carriage return or line feed"
+        );
+      }
+
+      // Validate header names don't contain dangerous chars
+      if (key.find('\r') != std::string::npos || key.find('\n') != std::string::npos || key.find(':') != std::string::npos) {
+        throw HttpError(
+          Constants::Http_Status::BAD_REQUEST,
+          "Invalid header name"
+        );
+      }
+
       context.req.setHeader(key, value);
     }
 
