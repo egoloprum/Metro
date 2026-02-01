@@ -142,7 +142,7 @@ namespace Metro {
       }
 
       if (index == segments.size()) {
-        auto it = node->endpoints.find(context.req._method);
+        auto it = node->endpoints.find(context.req.getMethod());
         if (it != node->endpoints.end()) {
           outEndpoint = it->second;
           return MatchResult::Found;
@@ -173,7 +173,7 @@ namespace Metro {
       std::vector<std::string> allAllowedMethods;
 
       for (auto& [paramName, childNode] : node->paramChildren) {
-        context.req._params[paramName] = Helpers::PathSanitizer::decodeSegment(seg);
+        context.req.getParams()[paramName] = Helpers::PathSanitizer::decodeSegment(seg);
         std::vector<std::string> branchAllowed;
         auto result = resolveRoute(childNode, segments, index + 1, context, outEndpoint, &branchAllowed);
         
@@ -185,7 +185,7 @@ namespace Metro {
                                    branchAllowed.begin(), 
                                    branchAllowed.end());
         }
-        context.req._params.erase(paramName);
+        context.req.getParams().erase(paramName);
       }
 
       if (bestResult == MatchResult::MethodNotAllowed && allowedMethods) {
@@ -199,7 +199,7 @@ namespace Metro {
     }
 
     void executeRoute(Context& context) {
-      std::stringstream ss(context.req._path);
+      std::stringstream ss(context.req.getPath());
       std::string segment;
       std::vector<std::string> segments;
 
@@ -213,7 +213,7 @@ namespace Metro {
 
       if (result == MatchResult::NotFound) {
         throw HttpError(Constants::Http_Status::NOT_FOUND,
-                       "Route not found: " + context.req._path);
+                       "Route not found: " + context.req.getPath());
       } 
       else if (result == MatchResult::MethodNotAllowed) {
         std::string allowValue;
@@ -224,7 +224,7 @@ namespace Metro {
 
         context.res.header(Constants::Http_Header::ALLOW, allowValue);
         throw HttpError(Constants::Http_Status::METHOD_NOT_ALLOWED,
-                       "Method not allowed: " + context.req._method);
+                       "Method not allowed: " + context.req.getMethod());
       }
 
       endpoint.handler(context);
@@ -234,8 +234,8 @@ namespace Metro {
       auto accept = context.req.header(Constants::Http_Header::ACCEPT);
       if (!accept || accept->empty()) return;
 
-      auto it = context.res._headers.find(Constants::Http_Header::CONTENT_TYPE);
-      if (it == context.res._headers.end()) return;
+      auto it = context.res.getHeaders().find(Constants::Http_Header::CONTENT_TYPE);
+      if (it == context.res.getHeaders().end()) return;
 
       if (accept->find("*/*") != std::string::npos) return;
       if (accept->find(it->second) != std::string::npos) return;
@@ -246,14 +246,46 @@ namespace Metro {
 
     void runMiddleware(Context& context) {
       size_t index = 0;
+      bool routeExecuted = false;
+      
       Next next = [&]() {
         if (index < middlewares.size()) {
-          middlewares[index++](context, next);
+          auto& middleware = middlewares[index++];
+          
+          try {
+            middleware(context, next);
+            
+            if (context.res.isCommitted()) {
+              return;
+            }
+          } catch (...) {
+            if (context.res.isCommitted()) {
+              throw;
+            }
+            throw;
+          }
         } else {
-          executeRoute(context);
+          routeExecuted = true;
+          try {
+            executeRoute(context);
+          } catch (...) {
+            if (context.res.isCommitted()) {
+              throw;
+            }
+            throw; 
+          }
         }
       };
-      next();
+      
+      try {
+        next();
+      } catch (const std::exception& e) {
+        if (context.res.isCommitted()) {
+          throw;
+        }
+        
+        throw;
+      }
     }
 
     public:
@@ -262,6 +294,24 @@ namespace Metro {
     App& operator=(const App&) = delete;
     App(App&&) = delete;
     App& operator=(App&&) = delete;
+
+    /**
+     * Middleware Exception Contract:
+     * 
+     * 1. If you call next() and do not catch exceptions, you are delegating 
+     *    exception handling to the framework. The framework will send an 
+     *    HTTP error response if the response hasn't started.
+     * 
+     * 2. If you catch exceptions after calling next(), you MAY write to the 
+     *    response only if context.res.isCommitted() is false. If true, the 
+     *    connection is dead - do not attempt to write.
+     * 
+     * 3. If next() returns successfully but you then throw, the exception 
+     *    will abort the connection if the handler already committed the response.
+     * 
+     * Best Practice: Do not throw after calling next(). If you must handle 
+     * errors post-next(), check isCommitted() first.
+     */
 
     App& use(Middleware middleware) {
       this->middlewares.push_back(std::move(middleware));

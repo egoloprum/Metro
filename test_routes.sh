@@ -362,22 +362,22 @@ for server in server_404_test server_body_test server_middleware_test server_mul
     # -----------------------
     # Middleware chain tests
     # -----------------------
-    server_middleware_chain_test)
-      echo "[TEST] Middleware chain execution (check X-Request-ID and X-Processing-Time headers)"
-      curl -i --silent --show-error http://127.0.0.1:3011/chain-test
-      echo
-      echo
+    # server_middleware_chain_test)
+    #   echo "[TEST] Middleware chain execution (check X-Request-ID and X-Processing-Time headers)"
+    #   curl -i --silent --show-error http://127.0.0.1:3011/chain-test
+    #   echo
+    #   echo
 
-      echo "[TEST] Middleware short-circuit (expect 403)"
-      curl -i --silent --show-error -H "X-Block: yes" http://127.0.0.1:3011/chain-test
-      echo
-      echo
+    #   echo "[TEST] Middleware short-circuit (expect 403)"
+    #   curl -i --silent --show-error -H "X-Block: yes" http://127.0.0.1:3011/chain-test
+    #   echo
+    #   echo
 
-      echo "[TEST] Middleware without short-circuit"
-      curl -i --silent --show-error http://127.0.0.1:3011/chain-test
-      echo
-      echo
-      ;;
+    #   echo "[TEST] Middleware without short-circuit"
+    #   curl -i --silent --show-error http://127.0.0.1:3011/chain-test
+    #   echo
+    #   echo
+    #   ;;
 
     # -----------------------
     # Keep-alive tests

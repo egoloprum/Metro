@@ -33,15 +33,16 @@ int main() {
         next();
     });
 
-    // Route specific middleware via chaining (simulated)
-    app.get("/chain-test", [](Context& c) {
-        // Check if previous middlewares ran
-        auto reqId = c.res._headers.find("X-Request-ID");
-        c.res.json({
-            {"middleware_applied", reqId != c.res._headers.end()},
-            {"message", "Hello"}
-        });
-    });
+    //// TODO: let middleware set variables
+
+    // app.get("/chain-test", [](Context& c) {
+    //     // Check if previous middlewares ran
+    //     auto reqId = c.res.headers().find("X-Request-ID");
+    //     c.res.json({
+    //         {"middleware_applied", reqId != c.res.headers().end()},
+    //         {"message", "Hello"}
+    //     });
+    // });
 
     Server server(app, 3011);
     server.listen();

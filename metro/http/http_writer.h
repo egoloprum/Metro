@@ -16,14 +16,16 @@ namespace Metro {
   class HttpWriter {
     public:
 
-    static void write(int clientSocket, const Context& context, bool keepAlive) {
+    static void write(int clientSocket, Context& context, bool keepAlive) {
+      context.res.commit();
+
       // Check if body is Stream first (special handling)
-      if (std::holds_alternative<Types::Stream>(context.res._body)) {
+      if (std::holds_alternative<Types::Stream>(context.res.getBody())) {
         writeStream(clientSocket, context, keepAlive);
         return;
       }
 
-      auto bodyView = buildBodyView(context.res._body);
+      auto bodyView = buildBodyView(context.res.getBody());
       std::string headers = buildHeaders(context, bodyView.size, keepAlive);
 
       if (bodyView.size > 0) {
@@ -46,7 +48,7 @@ namespace Metro {
     }
 
     static void writeStream(int clientSocket, const Context& context, bool keepAlive) {
-      const auto& stream = std::get<Types::Stream>(context.res._body);
+      const auto& stream = std::get<Types::Stream>(context.res.getBody());
       
       // Build headers (Stream sets Transfer-Encoding or Content-Length)
       std::string headers = buildHeaders(context, stream.contentLength, keepAlive);
@@ -160,13 +162,13 @@ namespace Metro {
   
     static void writeStatusLine(std::ostream& output, const Context& context) {
       output  << "HTTP/1.1" << " "
-              << context.res._status << " "
-              << Helpers::reasonPhrase(context.res._status)
+              << context.res.getStatus() << " "
+              << Helpers::reasonPhrase(context.res.getStatus())
               << "\r\n";
     }
   
     static void writeCustomHeaders(std::ostream& output, const Context& context) {
-      for (const auto& [headerName, headerValue] : context.res._headers) {
+      for (const auto& [headerName, headerValue] : context.res.getHeaders()) {
         output  << headerName << ": " 
                 << headerValue 
                 << "\r\n";
@@ -174,8 +176,8 @@ namespace Metro {
     }
   
     static void writeFixedHeaders(std::ostream& output, const Context& context, size_t bodySize, bool keepAlive) {
-      auto it = context.res._headers.find(std::string(Constants::Http_Header::TRANSFER_ENCODING));
-      bool is_chunked = (it != context.res._headers.end() && it->second.find("chunked") != std::string::npos);
+      auto it = context.res.getHeaders().find(std::string(Constants::Http_Header::TRANSFER_ENCODING));
+      bool is_chunked = (it != context.res.getHeaders().end() && it->second.find("chunked") != std::string::npos);
 
       if (!is_chunked) {
         output  << Constants::Http_Header::CONTENT_LENGTH << ": " 

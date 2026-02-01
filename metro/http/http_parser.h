@@ -155,8 +155,10 @@ namespace Metro {
     std::string rawPath;
 
     bool readRequestLine(std::istream& input, Context& context) {
-      std::string version;
-      input >> context.req._method >> rawPath >> version;
+      
+      std::string method_str, version;
+      input >> method_str >> rawPath >> version;
+      context.req.setMethod(std::move(method_str));
 
       if (rawPath.empty() || version.empty()) {
         throw HttpError(Constants::Http_Status::BAD_REQUEST, "Malformed request line");
@@ -180,11 +182,11 @@ namespace Metro {
 
       auto query = rawPath.find('?');
       if (query == std::string::npos) {
-        context.req._path = rawPath;
+        context.req.setPath(rawPath);
         return true;
       }
 
-      context.req._path = rawPath.substr(0, query);
+      context.req.setPath(rawPath.substr(0, query));
       return parseQueryString(rawPath.substr(query + 1), context);
     }
 
@@ -196,7 +198,7 @@ namespace Metro {
         );
       }
 
-      FormDataParser::parseMulti(queryString, context.req._query);
+      FormDataParser::parseMulti(queryString, context.req.getQueries());
       return true;
     }
 
@@ -255,7 +257,7 @@ namespace Metro {
       std::string value = line.substr(pos + 1);
       trim(value);
 
-      context.req._headers[key] = value;
+      context.req.setHeader(key, value);
     }
 
     inline void trim(std::string& value) {
@@ -306,7 +308,7 @@ namespace Metro {
       if (!readInitialBody(context)) return false;
       if (!readRemainingBody(context)) return false;
 
-      context.req._body = parseBody(context);
+      context.req.setBody(parseBody(context));
 
       return true;
     }
