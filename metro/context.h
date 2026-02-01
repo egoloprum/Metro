@@ -26,6 +26,8 @@ namespace Metro {
     std::unordered_map<std::string, std::string> params_;
     std::unordered_map<std::string, std::vector<std::string>> queries_;
 
+    std::string http_version_ = "1.1";
+
   public:
     std::optional<std::string> header(const std::string& key) const {
       auto it = headers_.find(key);
@@ -64,15 +66,18 @@ namespace Metro {
     friend class HttpHeadersParser;
     friend class HttpBodyParser;
     friend class Middlewares;
+    friend class Server;
 
-    const std::string& getMethod()  const noexcept { return method_; }
-    const std::string& getPath()    const noexcept { return path_; }
-    const Header& getHeaders()      const noexcept { return headers_; }
-    const Body& getBody()           const noexcept { return body_; }
+    const std::string& getHttpVersion() const noexcept { return http_version_; }
+    const std::string& getMethod()      const noexcept { return method_; }
+    const std::string& getPath()        const noexcept { return path_; }
+    const Header& getHeaders()          const noexcept { return headers_; }
+    const Body& getBody()               const noexcept { return body_; }
 
+    void setHeader(std::string key, std::string value)  { headers_[key] = std::move(value); }
+    void setHttpVersion(std::string version)            { http_version_ = std::move(version); }
     void setMethod(std::string method)                  { method_ = std::move(method); }
     void setPath(std::string path)                      { path_ = std::move(path); }
-    void setHeader(std::string key, std::string value)  { headers_[key] = std::move(value); }
     void setBody(Body body)                             { body_ = std::move(body); }
     
     std::unordered_map<std::string, std::string>& getParams()               { return params_; }

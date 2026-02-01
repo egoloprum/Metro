@@ -8,11 +8,13 @@ namespace Metro {
 
     // Server Configuration
     struct ServerConfig {
-      int port                = 3000;
-      int backlog_size        = 128;
-      int timeout_seconds     = 5;
-      size_t max_buffer_size  = 8192;
-      size_t max_header_size  = 64 * 1024;
+      int port                        = 3000;
+      int backlog_size                = 128;
+      int timeout_seconds             = 30;
+      int keep_alive_timeout_seconds  = 5;
+      size_t max_buffer_size          = 8192;
+      size_t max_header_size          = 64 * 1024;
+      size_t max_keep_alive_requests  = 100;
     };
 
     // Security Configuration

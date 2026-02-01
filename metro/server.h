@@ -119,69 +119,90 @@ namespace Metro {
       }
     }
 
-    //// Add connection keep-alive with proper timeout
-
     void handleConnection(int clientSocket) {
-      SocketGuard guard(clientSocket); 
+      SocketGuard guard(clientSocket);
+      setTimeout(clientSocket);
 
-      try {
-        setTimeout(clientSocket);
-      }
-      catch (...) {
-        std::cerr << "Fatal error in connection thread." << std::endl;
-        return;
-      }
+      auto lastActivity = std::chrono::steady_clock::now();
+      const auto maxKeepAliveDuration = std::chrono::seconds(config.server().keep_alive_timeout_seconds);
+      const size_t maxRequestsPerConnection = config.server().max_keep_alive_requests;
 
-      bool keepAlive = config.security().enable_keep_alive;
+      size_t requestCount = 0;
+      bool connectionOpen = true;
+      bool keepAlive      = false;
 
-      while (keepAlive) {
+      while (connectionOpen) {
+        auto now = std::chrono::steady_clock::now();
+        if (now - lastActivity > maxKeepAliveDuration) {
+          break;
+        }
+
         Context context;
+        bool    parseSuccess = false;
 
         try {
-          if (!HttpParser::parse(clientSocket, context, config)) break;
+          parseSuccess = HttpParser::parse(clientSocket, context, config);
         } catch (HttpError& e) {
           context.res
             .status(e.status())
             .text(e.what());
-          std::cerr << "Error parsing request: " << e.what() << std::endl;
-          
-          HttpWriter::write(clientSocket, context, false);
+
+          HttpWriter::write(clientSocket, context, keepAlive);
           break;
         }
 
+        if (!parseSuccess) break;
+
+        lastActivity = std::chrono::steady_clock::now();
+        requestCount++;
+
         try {
           app.handle(context);
-
         } catch (const HttpError& e) {
           context.res
             .status(e.status())
             .text(e.what());
-          std::cerr << "Error handling request: " << e.what() << std::endl;
-
-        } catch (const std::bad_variant_access& e) {
-          context.res
-            .status(Constants::Http_Status::UNSUPPORTED_MEDIA_TYPE)
-            .text(Helpers::reasonPhrase(Constants::Http_Status::UNSUPPORTED_MEDIA_TYPE));
-          std::cerr << "Error handling request: " << e.what() << std::endl;
-
         } catch (const std::exception& e) {
           context.res
             .status(Constants::Http_Status::INTERNAL_SERVER_ERROR)
             .text(Helpers::reasonPhrase(Constants::Http_Status::INTERNAL_SERVER_ERROR));
-          std::cerr << "Error handling request: " << e.what() << std::endl;
         }
 
+        keepAlive = shouldKeepAlive(context, requestCount, maxRequestsPerConnection);
+        
         HttpWriter::write(clientSocket, context, keepAlive);
-
-        //// keep-alive is ignored
-
-        auto connHeader = context.req.header(Constants::Http_Header::CONNECTION);
-        if (connHeader && *connHeader == Constants::Http_Connection::CLOSE) {
-          keepAlive = false;
+        
+        if (!keepAlive) {
+          connectionOpen = false;
         }
       }
+    }
+
+    bool shouldKeepAlive(const Context& context, size_t requestCount, size_t maxRequests) {
+      if (requestCount >= maxRequests) {
+        return false;
+      }
+
+      auto connHeader = context.req.header(Constants::Http_Header::CONNECTION);
+      const std::string& version = context.req.getHttpVersion();
+
+      if (version == "1.1") {
+        if (connHeader && *connHeader == Constants::Http_Connection::CLOSE) {
+          return false;
+        }
+        return true;
+      }
+
+      if (version == "1.0") {
+        if (connHeader && *connHeader == Constants::Http_Connection::KEEP_ALIVE) {
+          return true;
+        }
+        return false;
+      }
+
+      return false;
     }
   };
 }
 
-// DOCS: read about linux network sockets
+//// DOCS: read about linux network sockets
