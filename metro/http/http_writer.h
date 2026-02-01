@@ -116,15 +116,25 @@ namespace Metro {
     }
 
     static std::string getCurrentDate() {
+      thread_local std::string cached;
+      thread_local std::time_t last = 0;
+      
       auto now = std::chrono::system_clock::now();
       std::time_t now_time = std::chrono::system_clock::to_time_t(now);
       
-      std::tm gmt_time;
-      gmtime_r(&now_time, &gmt_time);
+      if (now_time != last) {
+        last = now_time;
+        std::tm gmt_time;
+        gmtime_r(&now_time, &gmt_time);
+
+        const short dateLength = 64;
+        
+        char buffer[dateLength];
+        strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S GMT", &gmt_time);
+        cached = buffer;
+      }
       
-      std::stringstream date_string_stream;
-      date_string_stream << std::put_time(&gmt_time, "%a, %d %b %Y %H:%M:%S GMT");
-      return date_string_stream.str();
+      return cached;
     }
 
     static std::string transformFormToString(const Types::Form& form) {
