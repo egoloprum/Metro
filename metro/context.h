@@ -67,6 +67,7 @@ namespace Metro {
     friend class HttpBodyParser;
     friend class Middlewares;
     friend class Server;
+    friend class Router;
 
     const std::string& getHttpVersion() const noexcept { return http_version_; }
     const std::string& getMethod()      const noexcept { return method_; }
