@@ -323,12 +323,35 @@ namespace Metro {
       auto transferEncoding =
         context.req.header(Constants::Http_Header::TRANSFER_ENCODING);
 
-      if (transferEncoding && *transferEncoding == "chunked") {
+      auto contentLength = 
+        context.req.header(Constants::Http_Header::CONTENT_LENGTH);
+
+      if (transferEncoding && contentLength) {
         throw HttpError(
-          Constants::Http_Status::LENGTH_REQUIRED, 
-          Helpers::reasonPhrase(Constants::Http_Status::LENGTH_REQUIRED)
+          Constants::Http_Status::BAD_REQUEST,
+          Helpers::reasonPhrase(Constants::Http_Status::BAD_REQUEST)
         );
       }
+
+      if (transferEncoding) {
+        std::string te = *transferEncoding;
+        std::transform(te.begin(), te.end(), te.begin(), ::tolower);
+        
+        if (te.find("chunked") != std::string::npos) {
+          // TODO: Implement chunked transfer coding parser per RFC 7230 §4.1
+          // For now: Reject as Not Implemented (avoid 411 which implies CL is required)
+          throw HttpError(
+            Constants::Http_Status::NOT_IMPLEMENTED,
+            "Chunked transfer encoding not implemented"
+          );
+        }
+        
+        throw HttpError(
+          Constants::Http_Status::NOT_IMPLEMENTED,
+          "Transfer-Encoding not supported"
+        );
+      }
+
       return true;
     }
 
